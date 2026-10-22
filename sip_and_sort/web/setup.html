@@ -6,96 +6,139 @@
 <title>sip-and-sort 설정</title>
 <link rel="icon" type="image/png" href="/icon.png">
 <style>
-  /* 딸기우유 팔레트: 화이트 · #D36279(메인) · #F8C8D5(연분홍) · #EC5564(강조/오류)
-     본문 글자는 가독성을 위해 같은 계열의 진한 색을 쓴다. */
+  /* 딸기우유 팔레트 개선: 대비를 높여 가독성 극대화 */
   :root {
     color-scheme: light;
-    --white: #ffffff; --rose: #D36279; --blush: #F8C8D5; --coral: #EC5564;
-    --rose-dark: #B84C63;   /* 버튼 그림자용 */
-    --box: #FDEBF0;         /* 박스 배경: #F8C8D5 를 흰색에 섞은 연핑크 */
-    --page: #FFF6F8;        /* 페이지 배경 */
-    --text: #3B2A30; --muted: #7A5560;
+    --white: #ffffff;
+    --rose: #C24A63;         /* 기존보다 진한 톤으로 텍스트 및 버튼 가독성 향상 */
+    --rose-dark: #9E354B;    /* 버튼 입체감 그림자용 */
+    --blush: #F4BAC7;        /* 테두리용 핑크 */
+    --coral: #E04859;        /* 강조/오류 톤 */
+    --box: #FFFFFF;          /* 박스 배경을 완전한 흰색으로 변경해 가독성 대폭 개선 */
+    --page: #FFF0F3;         /* 페이지 전체 배경을 포근한 연핑크로 설정 */
+    --text: #2B1D22;         /* 본문 글자색을 아주 진하게 주어 눈이 편안하도록 설정 */
+    --muted: #6E4B55;        /* 보조 설명 글자색도 진하게 조정 */
   }
   * { box-sizing: border-box; }
-  [hidden] { display: none !important; }  /* .row/.saved 의 display:flex 가 hidden 속성을 덮어쓰지 않도록 */
-  body { margin: 0; color: var(--text); min-height: 100vh;
-         background:
-           radial-gradient(circle at 12% 8%, rgba(248, 200, 213, .55) 0 120px, transparent 121px),
-           radial-gradient(circle at 92% 30%, rgba(248, 200, 213, .35) 0 90px, transparent 91px),
-           var(--page);
-         font: 15px/1.65 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    color: var(--text);
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(244, 186, 199, .6) 0 150px, transparent 151px),
+      radial-gradient(circle at 90% 85%, rgba(244, 186, 199, .4) 0 180px, transparent 181px),
+      var(--page);
+    font: 15px/1.65 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  }
   main { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; }
 
-  /* 상단 헤더 카드 */
-  .hero { background: linear-gradient(135deg, var(--blush) 0%, var(--box) 55%, var(--white) 100%);
-          border: 2px solid var(--white); border-radius: 22px; padding: 22px 22px 18px; margin-bottom: 18px;
-          box-shadow: 0 8px 24px rgba(211, 98, 121, .18); }
-  h1 { font-size: 26px; margin: 0 0 6px; display: flex; align-items: center; gap: 12px; color: var(--rose); letter-spacing: -.3px; }
-  h1 img { width: 60px; height: 60px; filter: drop-shadow(0 4px 6px rgba(211, 98, 121, .3)); }
-  h1 small { display: block; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
-  .lead { color: var(--text); margin: 0; }
-  .notice { background: var(--white); color: #9E3C50; border-left: 5px solid var(--coral);
-            border-radius: 14px; padding: 12px 16px; margin: 0 0 18px; font-size: 14px;
-            box-shadow: 0 3px 12px rgba(236, 85, 100, .12); }
+  /* 상단 헤더 카드: 흰색 카드 바탕에 부드러운 그림자 */
+  .hero {
+    background: var(--white);
+    border: 2px solid var(--blush);
+    border-radius: 22px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 30px rgba(194, 74, 99, .12);
+  }
+  h1 { font-size: 26px; margin: 0 0 8px; display: flex; align-items: center; gap: 12px; color: var(--rose); letter-spacing: -.3px; }
+  h1 img { width: 60px; height: 60px; filter: drop-shadow(0 4px 6px rgba(194, 74, 99, .25)); }
+  h1 small { display: block; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0; margin-top: 2px; }
+  .lead { color: var(--text); margin: 0; font-weight: 500; }
 
-  /* 단계 박스 (연핑크) */
-  section { background: var(--box); border: 2px solid var(--white); border-radius: 20px; padding: 20px 20px 18px;
-            margin-bottom: 16px; box-shadow: 0 6px 18px rgba(211, 98, 121, .14); }
-  section h2 { font-size: 17px; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text); }
-  .step { display: inline-flex; width: 30px; height: 30px; border-radius: 50%;
-          background: linear-gradient(135deg, var(--rose), var(--coral)); color: var(--white);
-          align-items: center; justify-content: center; font-size: 14px; font-weight: 800;
-          box-shadow: 0 3px 8px rgba(236, 85, 100, .35); }
-  .badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--white); color: var(--muted);
-           border: 1px solid var(--blush); }
+  .notice {
+    background: var(--white);
+    color: #8C2A3E;
+    border-left: 6px solid var(--coral);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 15px rgba(224, 72, 89, .1);
+  }
+
+  /* 단계 박스: 배경을 흰색으로 통일하여 글자 가독성을 극대화 */
+  section {
+    background: var(--box);
+    border: 2px solid var(--blush);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(194, 74, 99, .08);
+  }
+  section h2 { font-size: 18px; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text); }
+
+  .step {
+    display: inline-flex; width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--rose), var(--coral)); color: var(--white);
+    align-items: center; justify-content: center; font-size: 14px; font-weight: 800;
+    box-shadow: 0 4px 10px rgba(224, 72, 89, .3);
+  }
+
+  .badge { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: #FFF0F3; color: var(--muted); border: 1px solid var(--blush); }
   .badge.ok { background: var(--rose); color: var(--white); border-color: var(--rose); }
   .badge.err { background: var(--coral); color: var(--white); border-color: var(--coral); }
-  p.help, ol.help { color: var(--muted); font-size: 14px; margin: 6px 0 12px; }
-  ol.help { padding-left: 20px; background: rgba(255, 255, 255, .6); border-radius: 12px; padding: 10px 14px 10px 32px; }
-  label { display: block; font-weight: 700; font-size: 14px; margin: 14px 0 6px; color: var(--text); }
+
+  p.help, ol.help { color: var(--muted); font-size: 14px; margin: 8px 0 14px; font-weight: 500; }
+  ol.help { background: #FFF6F8; border-radius: 12px; padding: 12px 16px 12px 34px; border: 1px solid #FAD2DB; }
+
+  label { display: block; font-weight: 700; font-size: 14px; margin: 16px 0 6px; color: var(--text); }
+
   input[type=text], input[type=number], textarea {
-    width: 100%; padding: 10px 12px; border: 1.5px solid var(--blush); border-radius: 12px;
-    background: var(--white); color: var(--text); font: inherit; }
+    width: 100%; padding: 12px 14px; border: 2px solid var(--blush); border-radius: 12px;
+    background: #FFFCFD; color: var(--text); font: inherit; font-weight: 500;
+  }
   input[type=file] { font: inherit; font-size: 14px; color: var(--muted); }
-  input[type=file]::file-selector-button { font: inherit; font-weight: 700; padding: 7px 14px; margin-right: 10px; border-radius: 999px;
-    border: 1.5px solid var(--rose); background: var(--white); color: var(--rose); cursor: pointer; }
-  input:focus, textarea:focus { outline: 3px solid rgba(211, 98, 121, .25); border-color: var(--rose); }
+  input[type=file]::file-selector-button {
+    font: inherit; font-weight: 700; padding: 8px 16px; margin-right: 12px; border-radius: 999px;
+    border: 2px solid var(--rose); background: var(--white); color: var(--rose); cursor: pointer;
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 4px rgba(194, 74, 99, .15); }
+
   textarea { min-height: 190px; font-family: ui-monospace, Consolas, "D2Coding", monospace; font-size: 13px; resize: vertical; }
   textarea.short { min-height: 90px; }
-  code { background: var(--white); color: var(--rose); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  code { background: #FFF0F3; color: var(--rose); padding: 2px 6px; border-radius: 6px; font-size: 13px; font-weight: 700; border: 1px solid #FAD2DB; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 
-  /* 버튼: 사탕처럼 동글동글 */
-  button, a.btn { font: inherit; font-weight: 700; padding: 9px 18px; border-radius: 999px; border: 1.5px solid var(--rose);
-                  background: var(--rose); color: var(--white); cursor: pointer; text-decoration: none; display: inline-block;
-                  box-shadow: 0 3px 0 var(--rose-dark); transition: transform .08s, background .15s; }
-  button:not(:disabled):hover, a.btn:hover { background: var(--coral); border-color: var(--coral); }
-  button:not(:disabled):active, a.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--rose-dark); }
-  button.secondary { background: var(--white); color: var(--rose); border-color: var(--blush); box-shadow: 0 3px 0 var(--blush); }
-  button.secondary:not(:disabled):hover { background: var(--white); border-color: var(--rose); color: var(--coral); }
-  button:disabled { opacity: .55; cursor: default; }
+  /* 버튼 디자인 개선 */
+  button, a.btn {
+    font: inherit; font-weight: 700; padding: 10px 20px; border-radius: 999px; border: none;
+    background: var(--rose); color: var(--white); cursor: pointer; text-decoration: none; display: inline-block;
+    box-shadow: 0 4px 0 var(--rose-dark); transition: transform .08s, background .15s, box-shadow .15s;
+  }
+  button:not(:disabled):hover, a.btn:hover { background: var(--coral); box-shadow: 0 4px 0 #B53241; }
+  button:not(:disabled):active, a.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--rose-dark); }
 
-  .hint { color: var(--muted); font-size: 13px; }
-  /* 2단계: 활동명 영역과 A/B/C 문구 사이, 문구끼리 간격 */
-  h3.sub { font-size: 15px; color: var(--rose); margin: 30px 0 4px; padding-top: 18px; border-top: 2px dashed var(--blush); }
+  button.secondary { background: var(--white); color: var(--rose); border: 2px solid var(--blush); box-shadow: 0 4px 0 var(--blush); }
+  button.secondary:not(:disabled):hover { background: #FFF6F8; border-color: var(--rose); color: var(--coral); box-shadow: 0 4px 0 var(--rose); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .hint { color: var(--muted); font-size: 13px; font-weight: 500; }
+
+  h3.sub { font-size: 15px; color: var(--rose); margin: 32px 0 6px; padding-top: 20px; border-top: 2px dashed var(--blush); font-weight: 800; }
   .tpl { margin-top: 26px; }
   .tpl:first-child { margin-top: 14px; }
-  /* 3단계: 오류 해결 도움말 */
-  .helpbox { background: var(--white); border-radius: 14px; padding: 12px 16px; margin-top: 12px; font-size: 14px;
-             border: 1.5px solid var(--blush); }
+
+  .helpbox { background: #FFF6F8; border-radius: 14px; padding: 16px; margin-top: 14px; font-size: 14px; border: 2px solid var(--blush); }
   .helpbox p { margin: 6px 0; }
   .helpbox ol { margin: 4px 0 10px; padding-left: 22px; }
-  .helpbox li { margin: 2px 0; }
-  .saved { background: var(--white); color: var(--rose); font-weight: 600; border-radius: 14px; padding: 10px 14px; font-size: 14px;
-           display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .saved button { padding: 5px 12px; font-size: 13px; }
-  .msg { font-size: 14px; margin-top: 10px; min-height: 1em; white-space: pre-wrap; }
-  .msg.ok { color: var(--rose); font-weight: 600; } .msg.err { color: var(--coral); font-weight: 600; }
-  pre { background: var(--white); border: 1.5px solid var(--blush); border-radius: 14px; padding: 14px; overflow-x: auto;
-        font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .helpbox li { margin: 4px 0; }
+
+  .saved { background: #FFF0F3; color: var(--rose); font-weight: 700; border-radius: 14px; padding: 12px 16px; font-size: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--blush); }
+  .saved button { padding: 6px 14px; font-size: 13px; }
+
+  .msg { font-size: 14px; margin-top: 12px; min-height: 1em; white-space: pre-wrap; font-weight: 600; }
+  .msg.ok { color: var(--rose); }
+  .msg.err { color: var(--coral); }
+
+  pre { background: #2B1D22; color: #FFF0F3; border-radius: 14px; padding: 16px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-word; border: 2px solid var(--blush); }
+
   details summary { cursor: pointer; font-weight: 700; font-size: 14px; margin-top: 8px; color: var(--rose); }
-  a { color: var(--rose); }
-  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 26px; }
+  a { color: var(--rose); font-weight: 700; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 30px; font-weight: 600; }
 </style>
 </head>
 <body>
