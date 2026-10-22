@@ -7,19 +7,14 @@
 <link rel="icon" type="image/png" href="/icon.png">
 <style>
   /* 딸기우유 팔레트: 화이트 · #D36279(메인) · #F8C8D5(연분홍) · #EC5564(강조/오류)
-     바탕은 핑크, 의미가 있는 요소는 구분이 잘 되도록 다른 계열을 쓴다.
-       초록 = 완료/정상, 노랑 = 주의/안내, 파랑 = 링크, 보라 = 자리표시자, 진한 회갈색 = 본문 */
+     본문 글자는 가독성을 위해 같은 계열의 진한 색을 쓴다. */
   :root {
     color-scheme: light;
     --white: #ffffff; --rose: #D36279; --blush: #F8C8D5; --coral: #EC5564;
     --rose-dark: #B84C63;   /* 버튼 그림자용 */
     --box: #FDEBF0;         /* 박스 배경: #F8C8D5 를 흰색에 섞은 연핑크 */
     --page: #FFF6F8;        /* 페이지 배경 */
-    --text: #2B2326; --muted: #6B5A60;
-    --green: #23764A; --green-bg: #E3F4E9; --green-line: #9ED3B4;
-    --amber: #7A4F00; --amber-bg: #FFF4D6; --amber-line: #F2B84B;
-    --blue: #2259C4; --violet: #6B3FA0; --violet-bg: #F1EBFA;
-    --gray-bg: #F1ECEE; --danger: #C62F45; --danger-bg: #FDE6E9;
+    --text: #3B2A30; --muted: #7A5560;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }  /* .row/.saved 의 display:flex 가 hidden 속성을 덮어쓰지 않도록 */
@@ -39,9 +34,9 @@
   h1 img { width: 60px; height: 60px; filter: drop-shadow(0 4px 6px rgba(211, 98, 121, .3)); }
   h1 small { display: block; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
   .lead { color: var(--text); margin: 0; }
-  .notice { background: var(--amber-bg); color: var(--amber); border-left: 5px solid var(--amber-line);
+  .notice { background: var(--white); color: #9E3C50; border-left: 5px solid var(--coral);
             border-radius: 14px; padding: 12px 16px; margin: 0 0 18px; font-size: 14px;
-            box-shadow: 0 3px 12px rgba(242, 184, 75, .18); }
+            box-shadow: 0 3px 12px rgba(236, 85, 100, .12); }
 
   /* 단계 박스 (연핑크) */
   section { background: var(--box); border: 2px solid var(--white); border-radius: 20px; padding: 20px 20px 18px;
@@ -51,11 +46,10 @@
           background: linear-gradient(135deg, var(--rose), var(--coral)); color: var(--white);
           align-items: center; justify-content: center; font-size: 14px; font-weight: 800;
           box-shadow: 0 3px 8px rgba(236, 85, 100, .35); }
-  .badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--gray-bg); color: var(--muted);
-           border: 1px solid #DDD3D7; }
-  .badge.ok { background: var(--green-bg); color: var(--green); border-color: var(--green-line); }
-  .badge.ok::before { content: "✓ "; }
-  .badge.err { background: var(--danger); color: var(--white); border-color: var(--danger); }
+  .badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--white); color: var(--muted);
+           border: 1px solid var(--blush); }
+  .badge.ok { background: var(--rose); color: var(--white); border-color: var(--rose); }
+  .badge.err { background: var(--coral); color: var(--white); border-color: var(--coral); }
   p.help, ol.help { color: var(--muted); font-size: 14px; margin: 6px 0 12px; }
   ol.help { padding-left: 20px; background: rgba(255, 255, 255, .6); border-radius: 12px; padding: 10px 14px 10px 32px; }
   label { display: block; font-weight: 700; font-size: 14px; margin: 14px 0 6px; color: var(--text); }
@@ -68,7 +62,7 @@
   input:focus, textarea:focus { outline: 3px solid rgba(211, 98, 121, .25); border-color: var(--rose); }
   textarea { min-height: 190px; font-family: ui-monospace, Consolas, "D2Coding", monospace; font-size: 13px; resize: vertical; }
   textarea.short { min-height: 90px; }
-  code { background: var(--violet-bg); color: var(--violet); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+  code { background: var(--white); color: var(--rose); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
 
   /* 버튼: 사탕처럼 동글동글 */
@@ -83,28 +77,24 @@
 
   .hint { color: var(--muted); font-size: 13px; }
   /* 2단계: 활동명 영역과 A/B/C 문구 사이, 문구끼리 간격 */
-  h3.sub { font-size: 15px; color: var(--rose-dark); margin: 30px 0 4px; padding-top: 18px; border-top: 2px dashed var(--blush); }
+  h3.sub { font-size: 15px; color: var(--rose); margin: 30px 0 4px; padding-top: 18px; border-top: 2px dashed var(--blush); }
   .tpl { margin-top: 26px; }
   .tpl:first-child { margin-top: 14px; }
   /* 3단계: 오류 해결 도움말 */
   .helpbox { background: var(--white); border-radius: 14px; padding: 12px 16px; margin-top: 12px; font-size: 14px;
-             border: 1.5px solid var(--amber-line); border-left-width: 5px; }
-  .helpbox b { color: var(--amber); }
+             border: 1.5px solid var(--blush); }
   .helpbox p { margin: 6px 0; }
   .helpbox ol { margin: 4px 0 10px; padding-left: 22px; }
   .helpbox li { margin: 2px 0; }
-  .saved { background: var(--green-bg); color: var(--green); border: 1.5px solid var(--green-line); font-weight: 600; border-radius: 14px; padding: 10px 14px; font-size: 14px;
+  .saved { background: var(--white); color: var(--rose); font-weight: 600; border-radius: 14px; padding: 10px 14px; font-size: 14px;
            display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .saved button { padding: 5px 12px; font-size: 13px; }
   .msg { font-size: 14px; margin-top: 10px; min-height: 1em; white-space: pre-wrap; }
-  .msg.ok { color: var(--green); font-weight: 600; }
-  .msg.err { color: var(--danger); background: var(--white); border-left: 5px solid var(--danger); border-radius: 10px;
-             padding: 8px 12px; font-weight: 600; box-shadow: 0 2px 8px rgba(198, 47, 69, .12); }
+  .msg.ok { color: var(--rose); font-weight: 600; } .msg.err { color: var(--coral); font-weight: 600; }
   pre { background: var(--white); border: 1.5px solid var(--blush); border-radius: 14px; padding: 14px; overflow-x: auto;
         font-size: 13px; white-space: pre-wrap; word-break: break-word; }
-  details summary { cursor: pointer; font-weight: 700; font-size: 14px; margin-top: 8px; color: var(--blue); }
-  a { color: var(--blue); }
-  a.btn { color: var(--white); }
+  details summary { cursor: pointer; font-weight: 700; font-size: 14px; margin-top: 8px; color: var(--rose); }
+  a { color: var(--rose); }
   footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 26px; }
 </style>
 </head>
