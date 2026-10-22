@@ -12,7 +12,7 @@
     color-scheme: light;
     --white: #ffffff; --rose: #D36279; --blush: #F8C8D5; --coral: #EC5564;
     --rose-dark: #B84C63;   /* 버튼 그림자용 */
-    --box: #FCE1E9;         /* 박스 배경: #F8C8D5 를 흰색에 섞은 연핑크 */
+    --box: #FDEBF0;         /* 박스 배경: #F8C8D5 를 흰색에 섞은 연핑크 */
     --page: #FFF6F8;        /* 페이지 배경 */
     --text: #3B2A30; --muted: #7A5560;
   }
@@ -76,6 +76,16 @@
   button:disabled { opacity: .55; cursor: default; }
 
   .hint { color: var(--muted); font-size: 13px; }
+  /* 2단계: 활동명 영역과 A/B/C 문구 사이, 문구끼리 간격 */
+  h3.sub { font-size: 15px; color: var(--rose); margin: 30px 0 4px; padding-top: 18px; border-top: 2px dashed var(--blush); }
+  .tpl { margin-top: 26px; }
+  .tpl:first-child { margin-top: 14px; }
+  /* 3단계: 오류 해결 도움말 */
+  .helpbox { background: var(--white); border-radius: 14px; padding: 12px 16px; margin-top: 12px; font-size: 14px;
+             border: 1.5px solid var(--blush); }
+  .helpbox p { margin: 6px 0; }
+  .helpbox ol { margin: 4px 0 10px; padding-left: 22px; }
+  .helpbox li { margin: 2px 0; }
   .saved { background: var(--white); color: var(--rose); font-weight: 600; border-radius: 14px; padding: 10px 14px; font-size: 14px;
            display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .saved button { padding: 5px 12px; font-size: 13px; }
@@ -130,6 +140,7 @@
     <input type="text" id="name" maxlength="50" placeholder="예: 크리에이터명">
     <label for="lookback">몇 시간 이내 메일을 검사할까요?</label>
     <input type="number" id="lookback" min="1" max="720" value="24">
+    <h3 class="sub">답장 문구 (A · B · C)</h3>
     <p class="help">사용 가능한 자리표시자: <code>{activity_name}</code> 내 이름, <code>{contact_name}</code> 상대 담당자 이름, <code>{original_subject}</code> 받은 메일 제목. 알 수 없는 값은 초안에 <code>[ ]</code>로 남습니다.</p>
     <div id="templates"></div>
     <div class="row"><button id="saveProfile">저장하기</button></div>
@@ -138,11 +149,21 @@
 
   <section id="s3">
     <h2><span class="step">3</span> Gmail 연결 <span class="badge" id="b3">확인 중</span></h2>
-    <p class="help">버튼을 누르면 새 브라우저 탭에서 Google 로그인 화면이 열립니다. "확인되지 않은 앱" 경고가 나오면 본인이 만든 앱이므로 [고급] → [(앱 이름)(으)로 이동]을 눌러 진행하세요. 권한은 메일 읽기·라벨·초안 저장에 쓰입니다.</p>
-    <p class="help"><b>"액세스 차단됨 … 403 오류: access_denied"</b>가 나오면: Google Cloud Console → <b>Google 인증 플랫폼 → 대상 → 테스트 사용자 → + Add users</b>에 로그인하려는 Gmail 주소를 추가하고 저장한 뒤, 이 페이지에서 [Gmail 연결하기]를 다시 누르세요.</p>
+    <p class="help">버튼을 누르면 새 탭에서 Google 로그인 화면이 열려요.</p>
     <div class="row">
       <button id="connect">Gmail 연결하기</button>
       <button id="disconnect" class="secondary">연결 해제</button>
+      <button id="helpToggle" class="secondary" type="button" aria-expanded="false" aria-controls="helpBox">액세스 오류가 나온다면?</button>
+    </div>
+    <div class="helpbox" id="helpBox" hidden>
+      <p><b>"액세스 차단됨 … 403 오류: access_denied"</b></p>
+      <ol>
+        <li>Google Cloud Console → <b>Google 인증 플랫폼 → 대상</b>으로 가요.</li>
+        <li><b>테스트 사용자 → + Add users</b>에 로그인할 Gmail 주소를 추가하고 저장해요.</li>
+        <li>1~2분 뒤 여기서 [Gmail 연결하기]를 다시 눌러요.</li>
+      </ol>
+      <p><b>"Google에서 확인하지 않은 앱"</b> — 본인이 만든 앱이라 괜찮아요. <b>[고급] → [(앱 이름)(으)로 이동]</b>을 누르세요.</p>
+      <p><b>로그인 탭이 안 열려요</b> — 아래에 나타나는 [Google 로그인 열기] 버튼을 눌러 주세요.</p>
     </div>
     <div class="msg" id="m3"></div>
     <div class="row" id="loginLinkRow" hidden>
@@ -202,7 +223,9 @@
       reset.className = "secondary"; reset.type = "button"; reset.textContent = "기본 문구로 되돌리기";
       reset.onclick = () => { ta.value = status.default_templates[key]; };
       row.append(reset);
-      box.append(lab, ta, row);
+      const item = document.createElement("div"); item.className = "tpl";
+      item.append(lab, ta, row);
+      box.append(item);
     }
   }
 
@@ -247,6 +270,12 @@
   }
 
   $("credReplace").onclick = () => { replacingCred = true; refresh(); };
+  $("helpToggle").onclick = () => {
+    const open = $("helpBox").hidden;
+    $("helpBox").hidden = !open;
+    $("helpToggle").setAttribute("aria-expanded", String(open));
+    $("helpToggle").textContent = open ? "도움말 닫기" : "액세스 오류가 나온다면?";
+  };
   $("credFile").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (file) $("credText").value = await file.text();
