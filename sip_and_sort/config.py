@@ -49,6 +49,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         ],
         "exclude_bulk_mail_heuristics": True,
     },
+    # 설정 페이지(exe)를 켜 둔 동안 일정 간격으로 자동 정리
+    "auto_run": {"enabled": False, "interval_minutes": 60},
     # 비어 있으면 templates.DEFAULT_TEMPLATES 사용
     "templates": {},
     # 분류 규칙 키워드 오버라이드 (비어 있으면 classifier.DEFAULT_RULES 사용)

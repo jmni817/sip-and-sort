@@ -147,6 +147,30 @@
   body[data-view=home] #s4 .step { display: none; }
   body[data-view=home] #s4 h2 { font-size: 21px; color: var(--rose); }
   body[data-view=home] #s4 { padding: 28px 24px; }
+
+  /* 자동 정리 스위치 */
+  .auto { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding: 12px 16px;
+          background: #FFF6F8; border: 1px solid #FAD2DB; border-radius: 14px; }
+  .auto-label { font-size: 14px; color: var(--text); }
+  .auto-note { margin: 6px 2px 0; }
+  .auto select { font: inherit; font-weight: 700; color: var(--rose); margin: 0 4px; padding: 4px 8px;
+                 border: 2px solid var(--blush); border-radius: 999px; background: var(--white); cursor: pointer; }
+  .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; inset: 0; background: #E8D3D9; border-radius: 999px; cursor: pointer; transition: background .2s; }
+  .slider::before { content: ""; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; border-radius: 50%;
+                    background: var(--white); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); transition: transform .2s; }
+  .switch input:checked + .slider { background: var(--rose); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+  .switch input:focus-visible + .slider { box-shadow: 0 0 0 4px rgba(194, 74, 99, .25); }
+
+  /* 정리 완료 알림: 잠깐 떴다가 자동으로 사라짐 */
+  .toast { position: fixed; left: 50%; bottom: 28px; z-index: 10; max-width: min(92vw, 460px);
+           transform: translate(-50%, 20px); opacity: 0; transition: opacity .3s, transform .3s;
+           background: var(--rose); color: var(--white); font-weight: 700; font-size: 15px; text-align: center;
+           padding: 14px 22px; border-radius: 18px; box-shadow: 0 10px 30px rgba(194, 74, 99, .35); }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--coral); }
 </style>
 </head>
 <body>
@@ -238,10 +262,27 @@
       <button id="toSettings" class="secondary" type="button" hidden>설정 편집하기</button>
       <button id="shutdown" class="secondary">종료</button>
     </div>
+    <div class="auto" id="autoBox">
+      <label class="switch" title="자동 정리 켜기/끄기">
+        <input type="checkbox" id="autoOn" aria-label="자동 정리">
+        <span class="slider"></span>
+      </label>
+      <span class="auto-label"><b>자동 정리</b>
+        <select id="autoInterval" aria-label="자동 정리 간격">
+          <option value="30">30분</option>
+          <option value="60">1시간</option>
+          <option value="120">2시간</option>
+          <option value="180">3시간</option>
+        </select>마다
+      </span>
+      <span class="hint" id="autoNext"></span>
+    </div>
+    <p class="hint auto-note">자동 정리는 sip-and-sort(검은 창)를 켜 둔 동안에만 동작해요.</p>
     <div class="msg" id="m4"></div>
     <pre id="out" hidden></pre>
   </section>
 
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <footer id="footer">🍓 다음부터는 프로그램을 실행해 [지금 정리하기]만 누르면 됩니다.</footer>
 </main>
 <script>
@@ -281,6 +322,56 @@
   }
 
   function goTo(next) { view = next; applyView(); window.scrollTo(0, 0); }
+
+  // ---- 정리 완료 알림 (몇 초 뒤 자동으로 사라짐)
+  let lastSeenRun = null;  // 페이지를 연 시점의 마지막 실행 번호 (예전 결과로는 알림을 띄우지 않음)
+  let toastTimer = null;
+  function showToast(text, isError) {
+    const t = $("toast");
+    t.textContent = text;
+    t.className = "toast" + (isError ? " err" : "");
+    t.hidden = false;
+    requestAnimationFrame(() => t.classList.add("show"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      t.classList.remove("show");
+      setTimeout(() => { t.hidden = true; }, 350);
+    }, isError ? 8000 : 4500);
+  }
+  function runToastText(r) {
+    const prefix = r.auto ? "자동 정리" : "정리";
+    if (!r.ok) return `${prefix} 실패: ${r.error}`;
+    if (!r.total) return `🍓 ${prefix} 완료! 새 협업 메일이 없어요`;
+    return `🍓 ${prefix} 완료! 답장 초안 ${r.drafted}건 · 직접 검토 ${r.review}건`;
+  }
+  function checkNewRun(s) {
+    const r = s.last_run;
+    const seq = r ? r.seq : 0;
+    if (lastSeenRun === null) { lastSeenRun = seq; return; }
+    if (seq <= lastSeenRun) return;
+    lastSeenRun = seq;
+    showToast(runToastText(r), !r.ok);
+    if (r.auto && r.ok && r.output) { $("out").textContent = r.output; $("out").hidden = false; }
+  }
+
+  // ---- 자동 정리 스위치
+  function renderAuto(s) {
+    const a = s.auto;
+    if (document.activeElement !== $("autoInterval")) $("autoInterval").value = String(a.interval_minutes);
+    $("autoOn").checked = a.enabled;
+    if (a.enabled && a.next_at) {
+      const t = new Date(a.next_at * 1000);
+      $("autoNext").textContent = `다음 정리 ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
+    } else {
+      $("autoNext").textContent = a.enabled ? "곧 다음 정리 시각이 정해져요" : "꺼짐";
+    }
+  }
+  async function saveAuto() {
+    try {
+      await api("/api/auto", { enabled: $("autoOn").checked, interval_minutes: Number($("autoInterval").value) });
+      await refresh();
+    } catch (err) { msg("m4", err.message, "err"); refresh().catch(() => {}); }
+  }
 
   async function api(path, body) {
     const opts = { headers: { "X-Setup-Token": TOKEN } };
@@ -356,11 +447,18 @@
     lastStatus = s;
     if (view === null) view = isReady(s) ? "home" : "onboarding";
     applyView();
+    renderAuto(s);
+    checkNewRun(s);
     return s;
   }
 
   $("credReplace").onclick = () => { replacingCred = true; refresh(); };
   $("toSettings").onclick = () => goTo("settings");
+  $("autoOn").onchange = saveAuto;
+  $("autoInterval").onchange = saveAuto;
+  // 자동 정리 결과를 받기 위해 상태를 주기적으로 확인 (로컬 요청이라 부담 없음)
+  setInterval(() => { if (!document.hidden) refresh().catch(() => {}); }, 15000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh().catch(() => {}); });
   $("toHome").onclick = () => goTo("home");
   $("helpToggle").onclick = () => {
     const open = $("helpBox").hidden;
@@ -407,6 +505,7 @@
     try {
       const r = await api(path, {});
       $("out").textContent = r.output; $("out").hidden = false; msg("m4", doneText, "ok");
+      refresh().catch(() => {});  // 실제 정리였다면 완료 알림을 띄운다
     } catch (err) { msg("m4", err.message, "err"); }
     finally { $("preview").disabled = $("runNow").disabled = false; }
   }

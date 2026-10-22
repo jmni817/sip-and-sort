@@ -49,6 +49,9 @@ OAUTH_TIMEOUT_SECONDS = 300
 # 새로고침해도 페이지가 열리도록 접속 토큰을 기억하는 쿠키 (실행할 때마다 토큰이 바뀜)
 SESSION_COOKIE = "sip_and_sort_session"
 TOKEN_META = '<meta name="sip-token" content="">'
+AUTO_INTERVAL_CHOICES = (30, 60, 120, 180)  # 자동 정리 간격(분)
+AUTO_CHECK_SECONDS = 15                     # 자동 정리 시각이 됐는지 확인하는 주기
+EMAIL_RECHECK_SECONDS = 300                 # 연결된 계정 주소 조회 실패 시 재시도 간격
 
 
 class _LinkCaptureBrowser(webbrowser.BaseBrowser):
@@ -104,6 +107,11 @@ class SetupState:
         self.oauth: dict[str, Any] = {"state": "idle", "message": ""}
         self.connected_email: str | None = None
         self._oauth_thread: threading.Thread | None = None
+        self._email_checked_at = 0.0
+        # 마지막 실제 정리 결과 (페이지가 seq 변화를 보고 '정리 완료' 알림을 띄운다)
+        self.last_run: dict[str, Any] | None = None
+        self._run_seq = 0
+        self._next_auto_at: float | None = None
         self._browser_name = f"sip-and-sort-login-{id(self)}"
         webbrowser.register(self._browser_name, None, _LinkCaptureBrowser(self._set_auth_url))
 
@@ -145,6 +153,8 @@ class SetupState:
             "templates": {k: templates.get(k) or v for k, v in DEFAULT_TEMPLATES.items()},
             "default_templates": DEFAULT_TEMPLATES,
             "template_labels": TEMPLATE_LABELS,
+            "auto": {**self.auto_settings(), "next_at": self._next_auto_at, "choices": list(AUTO_INTERVAL_CHOICES)},
+            "last_run": self.last_run,
         }
 
     # ---- 저장
@@ -237,6 +247,10 @@ class SetupState:
     def refresh_connected_email(self) -> None:
         if not self.token_path.exists() or self.connected_email:
             return
+        # 페이지가 주기적으로 상태를 묻기 때문에, 실패했을 때 매번 다시 시도하지 않도록 간격을 둔다
+        if time.monotonic() - self._email_checked_at < EMAIL_RECHECK_SECONDS and self._email_checked_at:
+            return
+        self._email_checked_at = time.monotonic()
         try:
             creds = load_credentials(self.credentials_path, self.token_path, interactive=False)
             self.connected_email = GmailClient(build_service(creds)).get_my_addresses_primary()
@@ -249,8 +263,84 @@ class SetupState:
         self.connected_email = None
         self.oauth = {"state": "idle", "message": "연결이 해제되었습니다."}
 
-    def run_once(self, *, dry_run: bool) -> str:
-        """페이지에서 1회 실행. dry_run=False 여도 라벨/초안만 다루며 발송하지 않는다."""
+    def run_once(self, *, dry_run: bool, auto: bool = False) -> str:
+        """1회 실행. dry_run=False 여도 라벨/초안만 다루며 발송하지 않는다."""
+        report = self._run_report(dry_run=dry_run)
+        output = format_report(report, show_drafts=True)
+        if not dry_run:
+            self._record_run(
+                auto=auto,
+                ok=True,
+                output=output,
+                drafted=len(report.drafted),
+                review=len(report.review_needed),
+                total=len(report.results),
+                errors=len(report.errors),
+            )
+        return output
+
+    def _record_run(self, **result: Any) -> None:
+        self._run_seq += 1
+        self.last_run = {"seq": self._run_seq, "finished_at": time.time(), **result}
+
+    # ---- 자동 정리 (설정 페이지/exe 를 켜 둔 동안만 동작)
+
+    def auto_settings(self) -> dict[str, Any]:
+        cfg = self.merged_config().get("auto_run") or {}
+        interval = cfg.get("interval_minutes")
+        if interval not in AUTO_INTERVAL_CHOICES:
+            interval = 60
+        return {"enabled": bool(cfg.get("enabled")), "interval_minutes": interval}
+
+    def save_auto(self, payload: dict[str, Any]) -> None:
+        try:
+            interval = int(payload.get("interval_minutes") or 60)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("자동 정리 간격이 올바르지 않습니다.") from exc
+        if interval not in AUTO_INTERVAL_CHOICES:
+            raise ValueError("자동 정리 간격은 30분, 1시간, 2시간, 3시간 중에서 골라 주세요.")
+        enabled = bool(payload.get("enabled"))
+        raw = self._raw_config() or copy.deepcopy(DEFAULT_CONFIG)
+        raw["auto_run"] = {"enabled": enabled, "interval_minutes": interval}
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        save_private_file(self.config_path, dump_config(raw))
+        # 켜거나 간격을 바꾸면 그 시점부터 다시 센다
+        self._next_auto_at = time.time() + interval * 60 if enabled else None
+
+    def auto_tick(self, now: float | None = None) -> bool:
+        """자동 정리 시각이 됐으면 1회 정리. 실제로 실행했으면 True."""
+        now = time.time() if now is None else now
+        settings = self.auto_settings()
+        if not settings["enabled"]:
+            self._next_auto_at = None
+            return False
+        interval = settings["interval_minutes"] * 60
+        if self._next_auto_at is None:
+            self._next_auto_at = now + interval
+            return False
+        if now < self._next_auto_at:
+            return False
+        self._next_auto_at = now + interval
+        stamp = time.strftime("%H:%M", time.localtime(now))
+        try:
+            self.run_once(dry_run=False, auto=True)
+            last = self.last_run or {}
+            print(f"[{stamp}] 자동 정리 완료: 초안 {last.get('drafted', 0)}건, "
+                  f"직접 검토 {last.get('review', 0)}건", flush=True)
+        except Exception as exc:  # 다음 주기에 다시 시도
+            log.debug("자동 정리 실패", exc_info=True)
+            self._record_run(auto=True, ok=False, error=str(exc))
+            print(f"[{stamp}] 자동 정리 실패: {exc}", flush=True)
+        return True
+
+    def auto_loop(self, stop: threading.Event) -> None:
+        while not stop.wait(AUTO_CHECK_SECONDS):
+            try:
+                self.auto_tick()
+            except Exception:  # 어떤 경우에도 스케줄러 스레드는 죽지 않게
+                log.debug("자동 정리 스케줄러 오류", exc_info=True)
+
+    def _run_report(self, *, dry_run: bool):
         try:
             config = load_config(self.config_path)
         except ConfigError as exc:
@@ -262,8 +352,7 @@ class SetupState:
         except AuthError as exc:
             raise ValueError(str(exc)) from exc
         with self.lock_run:
-            report = run(GmailClient(build_service(creds)), config, dry_run=dry_run)
-        return format_report(report, show_drafts=True)
+            return run(GmailClient(build_service(creds)), config, dry_run=dry_run)
 
 
 def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str]):
@@ -378,6 +467,9 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                     return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=True)})
                 if path == "/api/run":
                     return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=False)})
+                if path == "/api/auto":
+                    state.save_auto(payload)
+                    return self._json(HTTPStatus.OK, {"ok": True})
                 if path == "/api/shutdown":
                     self._json(HTTPStatus.OK, {"ok": True})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
@@ -410,10 +502,13 @@ def serve(config_path: str | Path, *, port: int = 8765, open_browser: bool = Tru
     print("  다 쓰셨으면 페이지의 [종료] 버튼을 누르거나 이 창을 닫으세요.", flush=True)
     if open_browser:
         webbrowser.open(url)
+    stop_auto = threading.Event()
+    threading.Thread(target=state.auto_loop, args=(stop_auto,), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        stop_auto.set()
         server.server_close()
         print("설정 페이지를 종료했습니다.")
