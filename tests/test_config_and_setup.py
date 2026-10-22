@@ -105,3 +105,23 @@ def test_frozen_exe_stores_config_in_app_data(monkeypatch, tmp_path):
     monkeypatch.setattr(main_module, "FROZEN", True)
     path = Path(main_module.default_config_path())
     assert path.name == "config.yaml" and path.parent.name == "sip-and-sort"
+
+
+def test_oauth_login_link_is_exposed_and_failures_are_reported(tmp_path, monkeypatch):
+    import webbrowser
+
+    from sip_and_sort import setup_server
+
+    state = SetupState(tmp_path / "config.yaml")
+    state.save_credentials(json.dumps({"installed": {"client_id": "a.apps.googleusercontent.com", "client_secret": "b"}}))
+
+    def fake_load_credentials(*args, browser=None, **kwargs):
+        webbrowser.get(browser).open("https://accounts.google.com/o/oauth2/auth?x=1")
+        assert state.status()["oauth"]["auth_url"].startswith("https://accounts.google.com/")
+        raise SystemExit("worker died")  # BaseException 이어도 '진행 중'에 멈추지 않아야 함
+
+    monkeypatch.setattr(setup_server, "load_credentials", fake_load_credentials)
+    state.start_oauth()
+    state._oauth_thread.join(5)
+    oauth = state.status()["oauth"]
+    assert oauth["state"] == "error" and "worker died" in oauth["message"]

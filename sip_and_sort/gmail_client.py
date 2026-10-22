@@ -81,8 +81,14 @@ def load_credentials(
     *,
     interactive: bool = True,
     open_browser: bool = True,
+    browser: str | None = None,
+    timeout_seconds: int | None = None,
 ):
-    """token.json 이 있으면 재사용(필요 시 refresh), 없으면 브라우저 OAuth 로그인."""
+    """token.json 이 있으면 재사용(필요 시 refresh), 없으면 브라우저 OAuth 로그인.
+
+    browser: webbrowser 에 등록된 이름. 설정 페이지는 이를 이용해 로그인 주소를 받아 화면에 보여준다.
+    timeout_seconds: 이 시간 안에 Google 로그인이 끝나지 않으면 중단.
+    """
     from google.auth.exceptions import RefreshError
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
@@ -127,6 +133,8 @@ def load_credentials(
         host="localhost",
         port=0,
         open_browser=open_browser,
+        browser=browser,
+        timeout_seconds=timeout_seconds,
         authorization_prompt_message="브라우저에서 아래 주소로 Google 로그인을 진행하세요:\n{url}",
         success_message="인증이 완료되었습니다. 이 창을 닫고 터미널/설정 페이지로 돌아가세요.",
     )

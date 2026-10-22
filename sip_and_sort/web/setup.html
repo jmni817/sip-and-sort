@@ -46,6 +46,9 @@
   button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent);
            background: var(--accent); color: var(--accent-text); cursor: pointer; }
   button.secondary { background: transparent; color: var(--accent); }
+  a.btn { display: inline-block; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent);
+          background: var(--accent); color: var(--accent-text); text-decoration: none; }
+  .hint { color: var(--muted); font-size: 13px; }
   button:disabled { opacity: .5; cursor: default; }
   .msg { font-size: 14px; margin-top: 10px; min-height: 1em; white-space: pre-wrap; }
   .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
@@ -98,11 +101,16 @@
   <section id="s3">
     <h2><span class="step">3</span> Gmail 연결 <span class="badge" id="b3">확인 중</span></h2>
     <p class="help">버튼을 누르면 새 브라우저 탭에서 Google 로그인 화면이 열립니다. "확인되지 않은 앱" 경고가 나오면 본인이 만든 앱이므로 [고급] → [(앱 이름)(으)로 이동]을 눌러 진행하세요. 권한은 메일 읽기·라벨·초안 저장에 쓰입니다.</p>
+    <p class="help"><b>"액세스 차단됨 … 403 오류: access_denied"</b>가 나오면: Google Cloud Console → <b>Google 인증 플랫폼 → 대상 → 테스트 사용자 → + Add users</b>에 로그인하려는 Gmail 주소를 추가하고 저장한 뒤, 이 페이지에서 [Gmail 연결하기]를 다시 누르세요.</p>
     <div class="row">
       <button id="connect">Gmail 연결하기</button>
       <button id="disconnect" class="secondary">연결 해제</button>
     </div>
     <div class="msg" id="m3"></div>
+    <div class="row" id="loginLinkRow" hidden>
+      <a id="loginLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">Google 로그인 열기</a>
+      <span class="hint">새 탭에서 로그인·권한 허용을 마치면 이 페이지가 자동으로 '연결됨'으로 바뀝니다. (5분 제한)</span>
+    </div>
   </section>
 
   <section id="s4">
@@ -125,6 +133,7 @@
   history.replaceState(null, "", "/");  // 주소창/기록에서 토큰 숨김
   const $ = (id) => document.getElementById(id);
   let polling = null;
+  let lastAuthUrl = null;
 
   async function api(path, body) {
     const opts = { headers: { "X-Setup-Token": TOKEN } };
@@ -180,6 +189,16 @@
       else msg("m3", o.message);
     }
     if (o.state === "error" && s.token) msg("m3", o.message, "err");
+    const showLink = o.state === "running" && !!o.auth_url;
+    $("loginLinkRow").hidden = !showLink;
+    if (showLink) {
+      $("loginLink").href = o.auth_url;
+      if (lastAuthUrl !== o.auth_url) {  // 처음 받은 주소는 새 탭으로 열어 본다 (팝업 차단 시 버튼 사용)
+        lastAuthUrl = o.auth_url;
+        window.open(o.auth_url, "_blank", "noopener");
+      }
+    }
+    $("connect").textContent = o.state === "running" ? "로그인 대기 중..." : "Gmail 연결하기";
     $("connect").disabled = o.state === "running";
     if (o.state !== "running" && polling) { clearInterval(polling); polling = null; }
     return s;
