@@ -2,6 +2,11 @@
 
 <h1 align="center">🍓 sip-and-sort</h1>
 
+<p align="center">
+  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/downloads/jmni817/sip-and-sort/total?label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C&color=D36279" alt="총 다운로드 수"></a>
+  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/v/release/jmni817/sip-and-sort?label=%EC%B5%9C%EC%8B%A0%20%EB%B2%84%EC%A0%84&color=EC5564" alt="최신 버전"></a>
+</p>
+
 > "딸기우유 한 모금 마시는 사이에, 쌓여있던 협업 메일 분류부터 답장 초안 작성까지 한번에 끝!"
 > A smart & aesthetic open-source Gmail sorter for creators and developers.
 
