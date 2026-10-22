@@ -17,6 +17,7 @@ import json
 import logging
 import secrets
 import threading
+import time
 import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,6 +44,23 @@ log = logging.getLogger(__name__)
 
 MAX_BODY_BYTES = 1_000_000
 MAX_NAME_LENGTH = 50
+OAUTH_TIMEOUT_SECONDS = 300
+
+
+class _LinkCaptureBrowser(webbrowser.BaseBrowser):
+    """Google 로그인 주소를 브라우저로 직접 열지 않고 받아 두는 가짜 브라우저.
+
+    백그라운드 스레드에서 브라우저를 여는 동작은 Windows 환경에 따라 조용히 실패하는 경우가 있어,
+    주소를 설정 페이지에 넘겨 페이지(사용자 클릭)에서 새 탭으로 연다.
+    """
+
+    def __init__(self, on_url):
+        super().__init__("sip-and-sort-login-link")
+        self._on_url = on_url
+
+    def open(self, url, new=0, autoraise=True):
+        self._on_url(url)
+        return True
 
 
 class _LiteralDumper(yaml.SafeDumper):
@@ -79,8 +97,11 @@ class SetupState:
         self.config_path = config_path.resolve()
         self.lock = threading.Lock()
         self.lock_run = threading.Lock()  # 실행 버튼 연타로 초안이 중복 생성되지 않도록
-        self.oauth = {"state": "idle", "message": ""}
+        self.oauth: dict[str, Any] = {"state": "idle", "message": ""}
         self.connected_email: str | None = None
+        self._oauth_thread: threading.Thread | None = None
+        self._browser_name = f"sip-and-sort-login-{id(self)}"
+        webbrowser.register(self._browser_name, None, _LinkCaptureBrowser(self._set_auth_url))
 
     # ---- 파일 경로
 
@@ -159,23 +180,42 @@ class SetupState:
 
     # ---- Gmail 연결
 
+    def _set_auth_url(self, url: str) -> None:
+        self.oauth = {
+            "state": "running",
+            "message": "아래 [Google 로그인 열기] 버튼을 눌러 로그인과 권한 허용을 진행해 주세요.",
+            "auth_url": url,
+        }
+
     def start_oauth(self) -> None:
         with self.lock:
-            if self.oauth["state"] == "running":
-                return
+            if self._oauth_thread is not None and self._oauth_thread.is_alive():
+                return  # 이미 대기 중: 페이지에 있는 로그인 링크를 그대로 쓰면 된다
             if not self.credentials_path.exists():
                 raise ValueError("먼저 1단계에서 credentials.json 을 등록해 주세요.")
-            self.oauth = {"state": "running", "message": "브라우저에서 Google 로그인을 진행해 주세요..."}
-        threading.Thread(target=self._oauth_worker, daemon=True).start()
+            self.oauth = {"state": "running", "message": "Google 로그인 주소를 준비하는 중..."}
+            self._oauth_thread = threading.Thread(target=self._oauth_worker, daemon=True)
+            self._oauth_thread.start()
 
     def _oauth_worker(self) -> None:
+        started = time.monotonic()
         try:
-            creds = load_credentials(self.credentials_path, self.token_path, interactive=True)
+            creds = load_credentials(
+                self.credentials_path,
+                self.token_path,
+                interactive=True,
+                browser=self._browser_name,
+                timeout_seconds=OAUTH_TIMEOUT_SECONDS,
+            )
             self.connected_email = GmailClient(build_service(creds)).get_my_addresses_primary()
             self.oauth = {"state": "done", "message": "Gmail 연결 완료"}
-        except Exception as exc:  # 사용자에게 그대로 보여줌
+        except BaseException as exc:  # 어떤 경우에도 '진행 중'으로 멈춰 있지 않도록 결과를 남긴다
             log.debug("OAuth 실패", exc_info=True)
-            self.oauth = {"state": "error", "message": str(exc)}
+            if time.monotonic() - started >= OAUTH_TIMEOUT_SECONDS - 1:
+                message = "5분 안에 로그인이 끝나지 않아 취소했습니다. [Gmail 연결하기]를 다시 눌러 주세요."
+            else:
+                message = f"Gmail 연결 실패: {type(exc).__name__}: {exc}"
+            self.oauth = {"state": "error", "message": message}
 
     def refresh_connected_email(self) -> None:
         if not self.token_path.exists() or self.connected_email:
