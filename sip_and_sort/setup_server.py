@@ -20,6 +20,7 @@ import threading
 import time
 import webbrowser
 from http import HTTPStatus
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
@@ -45,6 +46,9 @@ log = logging.getLogger(__name__)
 MAX_BODY_BYTES = 1_000_000
 MAX_NAME_LENGTH = 50
 OAUTH_TIMEOUT_SECONDS = 300
+# 새로고침해도 페이지가 열리도록 접속 토큰을 기억하는 쿠키 (실행할 때마다 토큰이 바뀜)
+SESSION_COOKIE = "sip_and_sort_session"
+TOKEN_META = '<meta name="sip-token" content="">'
 
 
 class _LinkCaptureBrowser(webbrowser.BaseBrowser):
@@ -275,9 +279,11 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
 
         # ---- 공통
 
-        def _send(self, status: int, body: bytes, content_type: str) -> None:
+        def _send(self, status: int, body: bytes, content_type: str, extra_headers=()) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
+            for name, value in extra_headers:
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -301,6 +307,13 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
         def _token_ok(self) -> bool:
             return hmac.compare_digest(self.headers.get("X-Setup-Token", ""), access_token)
 
+        def _cookie_ok(self) -> bool:
+            try:
+                morsel = SimpleCookie(self.headers.get("Cookie", "")).get(SESSION_COOKIE)
+            except CookieError:
+                return False
+            return morsel is not None and hmac.compare_digest(morsel.value, access_token)
+
         def _read_json(self) -> dict[str, Any]:
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY_BYTES:
@@ -318,10 +331,19 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
             url = urlparse(self.path)
             if url.path == "/":
                 given = (parse_qs(url.query).get("t") or [""])[0]
-                if not hmac.compare_digest(given, access_token):
-                    msg = "터미널에 표시된 전체 주소(?t=...)로 접속해 주세요.".encode("utf-8")
+                # 처음엔 ?t=토큰 주소로, 새로고침 때는 쿠키로 확인한다.
+                # 쿠키는 SameSite=Strict 라 다른 사이트에서 이 페이지를 열 때는 전송되지 않는다.
+                if not (hmac.compare_digest(given, access_token) or self._cookie_ok()):
+                    msg = (
+                        "이 주소는 만료되었어요. sip-and-sort를 다시 실행하면 새 창이 열립니다. "
+                        "(보안을 위해 실행할 때마다 접속 주소가 바뀝니다)"
+                    ).encode("utf-8")
                     return self._send(HTTPStatus.FORBIDDEN, msg, "text/plain; charset=utf-8")
-                return self._send(HTTPStatus.OK, page.encode("utf-8"), "text/html; charset=utf-8")
+                body = page.replace(TOKEN_META, f'<meta name="sip-token" content="{access_token}">')
+                cookie = f"{SESSION_COOKIE}={access_token}; Path=/; HttpOnly; SameSite=Strict"
+                return self._send(
+                    HTTPStatus.OK, body.encode("utf-8"), "text/html; charset=utf-8", [("Set-Cookie", cookie)]
+                )
             if url.path in ("/icon.png", "/favicon.ico"):
                 return self._send(HTTPStatus.OK, icon, "image/png")
             if url.path == "/api/status":
