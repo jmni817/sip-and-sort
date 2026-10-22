@@ -125,3 +125,15 @@ def test_oauth_login_link_is_exposed_and_failures_are_reported(tmp_path, monkeyp
     state._oauth_thread.join(5)
     oauth = state.status()["oauth"]
     assert oauth["state"] == "error" and "worker died" in oauth["message"]
+
+
+def test_reregistering_same_key_keeps_gmail_login(tmp_path):
+    state = SetupState(tmp_path / "config.yaml")
+    key = json.dumps({"installed": {"client_id": "a.apps.googleusercontent.com", "client_secret": "b", "project_id": "my-proj"}})
+    assert state.save_credentials(key) is True  # 처음 등록
+    assert state.save_credentials(key) is False  # 같은 키 재등록 → 연결 유지
+    other = json.dumps({"installed": {"client_id": "z.apps.googleusercontent.com", "client_secret": "y"}})
+    assert state.save_credentials(other) is True  # 다른 키 → 재연결 필요
+    assert state.status()["credentials_project"] == ""
+    state.save_credentials(key)
+    assert state.status()["credentials_project"] == "my-proj"

@@ -131,6 +131,8 @@ class SetupState:
             "config_path": str(self.config_path),
             "config_exists": self.config_path.exists(),
             "credentials": self.credentials_path.exists(),
+            # 비밀값(client_secret)은 내보내지 않고, 어떤 프로젝트 키인지 알아볼 정보만 보여준다
+            "credentials_project": self._saved_client().get("project_id") or "",
             "token": self.token_path.exists(),
             "email": self.connected_email,
             "oauth": dict(self.oauth),
@@ -143,7 +145,16 @@ class SetupState:
 
     # ---- 저장
 
-    def save_credentials(self, text: str) -> None:
+    def _saved_client(self) -> dict[str, Any]:
+        """저장된 credentials.json 의 installed 항목 (없거나 깨졌으면 빈 dict)."""
+        try:
+            data = json.loads(self.credentials_path.read_text(encoding="utf-8"))
+            return data.get("installed") or {}
+        except (OSError, ValueError, AttributeError):
+            return {}
+
+    def save_credentials(self, text: str) -> bool:
+        """credentials.json 저장. 이전과 다른 OAuth 클라이언트면 True (기존 Gmail 연결 무효)."""
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
@@ -152,7 +163,9 @@ class SetupState:
             validate_client_secrets(data)
         except AuthError as exc:
             raise ValueError(str(exc)) from exc
+        changed = self._saved_client().get("client_id") != data["installed"]["client_id"]
         save_private_file(self.credentials_path, json.dumps(data, indent=2))
+        return changed
 
     def save_profile(self, payload: dict[str, Any]) -> None:
         name = str(payload.get("activity_name") or "").strip()
@@ -325,10 +338,11 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
             try:
                 payload = self._read_json()
                 if path == "/api/credentials":
-                    state.save_credentials(str(payload.get("json") or ""))
-                    state.disconnect()  # 클라이언트가 바뀌면 기존 토큰은 무효
-                    state.oauth = {"state": "idle", "message": ""}
-                    return self._json(HTTPStatus.OK, {"ok": True})
+                    changed = state.save_credentials(str(payload.get("json") or ""))
+                    if changed:  # 다른 클라이언트로 바뀌면 기존 토큰은 무효. 같은 키 재등록이면 연결 유지
+                        state.disconnect()
+                        state.oauth = {"state": "idle", "message": ""}
+                    return self._json(HTTPStatus.OK, {"ok": True, "changed": changed})
                 if path == "/api/profile":
                     state.save_profile(payload)
                     return self._json(HTTPStatus.OK, {"ok": True})
