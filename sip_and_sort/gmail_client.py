@@ -19,6 +19,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Callable
 
+from google.auth.exceptions import RefreshError
 from googleapiclient.errors import HttpError
 
 log = logging.getLogger(__name__)
@@ -163,6 +164,10 @@ def execute_with_retry(
     for attempt in range(max_retries + 1):
         try:
             return request.execute()
+        except RefreshError as exc:  # 토큰 만료/권한 해제/클라이언트 삭제 → 재시도해도 소용없음
+            raise AuthError(
+                f"Gmail 로그인이 만료되었거나 권한이 해제되었습니다. 설정 페이지에서 Gmail을 다시 연결해 주세요. ({exc})"
+            ) from exc
         except HttpError as exc:
             status = getattr(exc.resp, "status", None)
             if not _is_retryable(exc) or attempt == max_retries:

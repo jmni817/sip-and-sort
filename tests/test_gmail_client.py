@@ -61,6 +61,15 @@ def test_gives_up_after_max_retries():
     assert request.execute.call_count == 4
 
 
+def test_revoked_token_becomes_auth_error_without_retry():
+    from google.auth.exceptions import RefreshError
+
+    request = request_returning(RefreshError("invalid_grant"))
+    with pytest.raises(AuthError, match="다시 연결"):
+        execute_with_retry(request, sleep=lambda _: None)
+    assert request.execute.call_count == 1
+
+
 def test_retries_network_errors():
     request = request_returning(ConnectionError("reset"), {"ok": 1})
     assert execute_with_retry(request, sleep=lambda _: None) == {"ok": 1}

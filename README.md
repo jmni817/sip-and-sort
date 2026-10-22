@@ -32,6 +32,26 @@
 
 ---
 
+## 💾 가장 쉬운 방법: exe 다운로드 (Windows, 설치 없음)
+
+Python이나 명령어 없이 바로 쓸 수 있습니다.
+
+1. [**Releases**](https://github.com/jmni817/sip-and-sort/releases/latest) 페이지에서 `sip-and-sort.exe`를 다운로드합니다.
+2. 아래 **🛠️ Google Cloud 콘솔 설정 방법**을 따라 본인의 `credentials.json`을 받습니다. (최초 1회, 약 5분)
+3. `sip-and-sort.exe`를 **더블클릭**하면 검은 창과 함께 브라우저에 설정 페이지가 열립니다.
+4. 페이지에서 차례대로 ① `credentials.json` 등록 → ② 이름(활동명) 입력 → ③ Gmail 연결 → ④ **[지금 정리하기]** 를 누릅니다.
+
+다음부터는 exe를 실행해 **[지금 정리하기]** 만 누르면 됩니다. 다 쓰면 페이지의 [종료] 버튼을 누르거나 검은 창을 닫으세요.
+
+- **"Windows의 PC 보호" 경고가 뜨면:** 서명되지 않은 개인 프로젝트라서 나오는 안내입니다. **추가 정보 → 실행**을 누르세요. 걱정된다면 이 저장소의 코드를 직접 확인하거나 아래 "로컬 설치" 방법을 쓰셔도 됩니다.
+- **설정이 저장되는 곳:** `%APPDATA%\sip-and-sort\` (`config.yaml`, `credentials.json`, `token.json`). exe를 어디로 옮겨도 설정은 유지되고, 이 폴더를 지우면 초기화됩니다.
+- **매시간 자동으로 돌리고 싶다면:** 아래 [작업 스케줄러](#로컬-cron--launchd--작업-스케줄러로-돌리기) 예시에서 `$exe`를 다운로드한 `sip-and-sort.exe` 경로로 바꾸면 됩니다.
+- exe도 명령어를 그대로 지원합니다. 예: `sip-and-sort.exe run --dry-run`
+
+> exe에도 어떤 API 키나 토큰도 들어 있지 않습니다. Google Cloud에서 본인 키를 발급받는 단계는 Google 정책상 생략할 수 없습니다.
+
+---
+
 ## 🛠️ Google Cloud 콘솔 설정 방법 (최초 1회)
 
 1. [Google Cloud Console](https://console.cloud.google.com/)에 로그인 후 새 프로젝트를 생성합니다.
@@ -46,7 +66,7 @@
 
 ---
 
-## 🚀 로컬 설치 및 실행 방법
+## 🚀 로컬 설치 및 실행 방법 (Python / 개발자용)
 
 ### 1. 환경 설정 및 의존성 설치
 Python **3.11 이상**이 필요합니다.
@@ -231,13 +251,23 @@ sip-and-sort/
 │   ├── message.py         # Gmail 메시지 파싱
 │   └── config.py          # config.yaml 로딩/검증
 ├── tests/                 # pytest + 샘플 메일 fixtures (Gmail API는 mock)
-├── .github/workflows/     # run.yml(매시간 실행), test.yml(CI)
+├── packaging/             # exe 빌드 설정 (PyInstaller)
+├── .github/workflows/     # run.yml(매시간 실행), test.yml(CI), release.yml(exe 배포)
 ├── assets/            # 아이콘 (icon.png, icon.ico)
 ├── config.example.yaml
 ├── credentials.example.json
-├── pyproject.toml / requirements.txt
+├── pyproject.toml / requirements*.txt
 └── LICENSE / CONTRIBUTING.md
 ```
+
+---
+
+## 📦 exe 직접 빌드하기
+```bash
+pip install -r requirements-build.txt -e .
+pyinstaller --noconfirm packaging/sip-and-sort.spec   # 결과물: dist/sip-and-sort.exe
+```
+`v`로 시작하는 태그를 push하면(`git tag v0.2.0` → `git push origin v0.2.0`) [`release.yml`](.github/workflows/release.yml)이 GitHub에서 exe를 빌드해 Releases에 자동으로 올립니다.
 
 ---
 
@@ -252,7 +282,7 @@ pytest
 
 ## 🌏 English summary
 **sip-and-sort** scans your Gmail for collaboration / sponsorship / ad proposals (Korean & English keywords), skips newsletters and bulk mail, labels each as *Brand sponsorship / Paid ad / Other*, and — only when the case is clear — saves a reply **draft** (price inquiry → quote, unpaid product-for-content → polite decline, no-strings gift → accept). **It never sends email.**
-No API keys ship with this repo: create your own Google Cloud OAuth client (Desktop app), run `sip-and-sort setup` to open a local-only setup page, register `credentials.json`, enter your name (used to sign drafts), and connect Gmail. Then `sip-and-sort run --dry-run` → `sip-and-sort run`.
+Windows users can simply download `sip-and-sort.exe` from Releases and double-click it. No API keys ship with this repo or the exe: create your own Google Cloud OAuth client (Desktop app), run `sip-and-sort setup` to open a local-only setup page, register `credentials.json`, enter your name (used to sign drafts), and connect Gmail. Then `sip-and-sort run --dry-run` → `sip-and-sort run`.
 
 ---
 

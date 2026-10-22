@@ -15,7 +15,28 @@ from . import __version__
 from .config import ConfigError, load_config, parse_duration
 
 EXIT_OK, EXIT_PARTIAL, EXIT_FATAL = 0, 1, 2
-DEFAULT_CONFIG_PATH = os.environ.get("SIP_AND_SORT_CONFIG", "config.yaml")
+# PyInstaller 로 만든 exe 로 실행 중인지 여부
+FROZEN = bool(getattr(sys, "frozen", False))
+
+
+def app_data_dir() -> Path:
+    """exe 사용자의 설정 폴더. (exe 를 어디에 두든 같은 곳에 저장)"""
+    if os.name == "nt":
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "sip-and-sort"
+
+
+def default_config_path() -> str:
+    if os.environ.get("SIP_AND_SORT_CONFIG"):
+        return os.environ["SIP_AND_SORT_CONFIG"]
+    return str(app_data_dir() / "config.yaml") if FROZEN else "config.yaml"
+
+
+DEFAULT_CONFIG_PATH = default_config_path()
 
 
 def _duration(value: str) -> float:
@@ -32,10 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="디버그 로그 출력")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command")
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="설정 파일 경로 (기본: config.yaml)")
+    common.add_argument("--config", default=DEFAULT_CONFIG_PATH, help=f"설정 파일 경로 (기본: {DEFAULT_CONFIG_PATH})")
     common.add_argument("--credentials", help="credentials.json 경로 (기본: config 의 credentials_path)")
     common.add_argument("--token", help="token.json 경로 (기본: config 의 token_path)")
 
@@ -134,7 +155,10 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(errors="replace")  # Windows 콘솔에서 한글/특수문자 출력 오류 방지
         except (AttributeError, ValueError):
             pass
-    args = build_parser().parse_args(argv)
+    raw_args = sys.argv[1:] if argv is None else argv
+    # 인자 없이 실행(= exe 더블클릭) 하면 설정/실행 페이지를 연다
+    double_clicked = not raw_args
+    args = build_parser().parse_args(raw_args or ["setup"])
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
@@ -144,8 +168,10 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {"setup": _cmd_setup, "auth": _cmd_auth, "run": _cmd_run}
     try:
         return handlers[args.command](args)
-    except (ConfigError, AuthError, GmailApiError) as exc:
+    except (ConfigError, AuthError, GmailApiError, OSError) as exc:
         print(f"오류: {exc}", file=sys.stderr)
+        if FROZEN and double_clicked:  # 더블클릭 실행 시 창이 바로 닫혀 오류를 못 보는 것 방지
+            input("Enter 키를 누르면 종료합니다...")
         return EXIT_FATAL
     except KeyboardInterrupt:
         return EXIT_FATAL

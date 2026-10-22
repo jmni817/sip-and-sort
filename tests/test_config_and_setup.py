@@ -85,3 +85,23 @@ def test_setup_saves_valid_credentials_and_rejects_dummy(tmp_path):
     status = state.status()
     assert status["credentials"] is True
     assert "client_secret" not in json.dumps(status)  # 비밀 값은 다시 내보내지 않음
+
+
+def test_no_arguments_opens_setup_page(monkeypatch):
+    # exe 더블클릭(인자 없음) → 설정/실행 페이지
+    from sip_and_sort import main as main_module
+
+    called = {}
+    monkeypatch.setattr(main_module, "_cmd_setup", lambda args: called.setdefault("cmd", args.command) and 0)
+    assert main_module.main([]) == 0
+    assert called["cmd"] == "setup"
+
+
+def test_frozen_exe_stores_config_in_app_data(monkeypatch, tmp_path):
+    from sip_and_sort import main as main_module
+
+    monkeypatch.delenv("SIP_AND_SORT_CONFIG", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setattr(main_module, "FROZEN", True)
+    path = Path(main_module.default_config_path())
+    assert path.name == "config.yaml" and path.parent.name == "sip-and-sort"
