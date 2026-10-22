@@ -173,3 +173,60 @@ def test_setup_page_survives_refresh_with_cookie(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+# ---------------------------------------------------------------- 자동 정리
+
+
+def _ready_state(tmp_path):
+    state = SetupState(tmp_path / "config.yaml")
+    state.save_profile({"activity_name": "테스트"})
+    return state
+
+
+def test_auto_run_settings_saved_and_validated(tmp_path):
+    state = _ready_state(tmp_path)
+    assert state.auto_settings() == {"enabled": False, "interval_minutes": 60}
+    state.save_auto({"enabled": True, "interval_minutes": 30})
+    assert load_config(tmp_path / "config.yaml")["auto_run"] == {"enabled": True, "interval_minutes": 30}
+    assert state.status()["auto"]["next_at"] is not None
+    with pytest.raises(ValueError):
+        state.save_auto({"enabled": True, "interval_minutes": 7})
+    # 활동명 저장 시에도 자동 정리 설정이 유지된다
+    state.save_profile({"activity_name": "새이름"})
+    assert state.auto_settings()["enabled"] is True
+
+
+def test_auto_tick_runs_on_schedule_and_records_result(tmp_path, monkeypatch, capsys):
+    state = _ready_state(tmp_path)
+    calls = []
+
+    def fake_run_once(*, dry_run, auto=False):
+        calls.append((dry_run, auto))
+        state._record_run(auto=auto, ok=True, output="out", drafted=2, review=1, total=3, errors=0)
+        return "out"
+
+    monkeypatch.setattr(state, "run_once", fake_run_once)
+    assert state.auto_tick(now=1000) is False  # 꺼져 있으면 아무것도 안 함
+    state.save_auto({"enabled": True, "interval_minutes": 30})
+    state._next_auto_at = None
+    assert state.auto_tick(now=1000) is False  # 첫 확인: 다음 실행 시각만 정함
+    assert state.auto_tick(now=1000 + 29 * 60) is False
+    assert state.auto_tick(now=1000 + 30 * 60) is True
+    assert calls == [(False, True)]  # 실제 정리(dry_run=False), 자동 실행 표시
+    assert state.last_run["seq"] == 1 and state.last_run["auto"] is True and state.last_run["drafted"] == 2
+    assert state._next_auto_at == 1000 + 60 * 60
+    assert "자동 정리 완료: 초안 2건" in capsys.readouterr().out
+
+
+def test_auto_tick_failure_is_recorded_not_raised(tmp_path, monkeypatch):
+    state = _ready_state(tmp_path)
+    state.save_auto({"enabled": True, "interval_minutes": 30})
+    state._next_auto_at = 0
+
+    def boom(**_):
+        raise ValueError("3단계에서 Gmail을 먼저 연결해 주세요.")
+
+    monkeypatch.setattr(state, "run_once", boom)
+    assert state.auto_tick(now=10) is True
+    assert state.last_run["ok"] is False and "Gmail" in state.last_run["error"]
