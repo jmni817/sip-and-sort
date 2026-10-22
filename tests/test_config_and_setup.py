@@ -137,3 +137,39 @@ def test_reregistering_same_key_keeps_gmail_login(tmp_path):
     assert state.status()["credentials_project"] == ""
     state.save_credentials(key)
     assert state.status()["credentials_project"] == "my-proj"
+
+
+def test_setup_page_survives_refresh_with_cookie(tmp_path):
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from sip_and_sort.setup_server import SESSION_COOKIE, _make_handler
+
+    state = SetupState(tmp_path / "config.yaml")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), None)
+    port = server.server_address[1]
+    host = f"127.0.0.1:{port}"
+    server.RequestHandlerClass = _make_handler(state, "secret-token", {host})
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def get(path, headers=None):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", path, headers={"Host": host, **(headers or {})})
+        resp = conn.getresponse()
+        return resp.status, resp.getheader("Set-Cookie") or "", resp.read().decode("utf-8")
+
+    try:
+        status, cookie, body = get("/?t=secret-token")
+        assert status == 200 and 'content="secret-token"' in body
+        assert f"{SESSION_COOKIE}=secret-token" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
+
+        status, _, _ = get("/", {"Cookie": f"{SESSION_COOKIE}=secret-token"})  # 새로고침
+        assert status == 200
+        status, _, body = get("/", {"Cookie": f"{SESSION_COOKIE}=old-token"})  # 이전 실행의 쿠키
+        assert status == 403 and "다시 실행" in body
+        status, _, _ = get("/")
+        assert status == 403
+    finally:
+        server.shutdown()
+        server.server_close()

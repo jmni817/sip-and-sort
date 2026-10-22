@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>sip-and-sort 설정</title>
 <link rel="icon" type="image/png" href="/icon.png">
+<meta name="sip-token" content="">
 <style>
   /* 딸기우유 팔레트 개선: 대비를 높여 가독성 극대화 */
   :root {
@@ -245,7 +246,9 @@
 </main>
 <script>
 (() => {
-  const TOKEN = new URLSearchParams(location.search).get("t") || "";
+  // 서버가 페이지에 넣어 준 접속 토큰 (새로고침해도 유지됨)
+  const TOKEN = document.querySelector('meta[name="sip-token"]').content
+    || new URLSearchParams(location.search).get("t") || "";
   history.replaceState(null, "", "/");  // 주소창/기록에서 토큰 숨김
   const $ = (id) => document.getElementById(id);
   let polling = null;
@@ -408,10 +411,7 @@
     finally { $("preview").disabled = $("runNow").disabled = false; }
   }
   $("preview").onclick = () => runMail("/api/preview", "");
-  $("runNow").onclick = () => {
-    if (!confirm("Gmail에 라벨을 붙이고 답장 초안을 저장할까요? (메일은 발송되지 않습니다)")) return;
-    runMail("/api/run", "완료! Gmail 임시보관함에서 초안을 확인한 뒤 직접 보내세요.");
-  };
+  $("runNow").onclick = () => runMail("/api/run", "완료! Gmail 임시보관함에서 초안을 확인한 뒤 직접 보내세요.");
   $("shutdown").onclick = async () => {
     try { await api("/api/shutdown", {}); } catch (_) {}
     document.querySelector("main").innerHTML = "<h1>종료했습니다</h1><p class='lead'>이 탭을 닫으셔도 됩니다. 다음에 다시 프로그램을 실행하면 저장된 설정으로 바로 이어집니다.</p>";
