@@ -6,27 +6,32 @@
 <title>sip-and-sort 설정</title>
 <link rel="icon" type="image/png" href="/icon.png">
 <style>
+  /* 딸기우유 팔레트: 화이트 · #D36279(메인) · #F8C8D5(연분홍) · #EC5564(강조/오류)
+     본문 글자와 보조 글자는 가독성을 위해 같은 계열의 진한 색을 쓴다. */
   :root {
-    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5d6677; --line: #dde1e8;
-    --accent: #2f5bea; --accent-text: #ffffff; --ok: #1a7f4b; --ok-bg: #e6f4ec;
-    --warn: #9a5b00; --warn-bg: #fdf1dc; --err: #b42318; --err-bg: #fde8e7; --code-bg: #f0f2f5;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #12151b; --card: #1b1f27; --text: #e7eaf0; --muted: #a0a8b8; --line: #2d3340;
-      --accent: #6f8ff7; --accent-text: #0e1220; --ok: #6fd39d; --ok-bg: #173226;
-      --warn: #f2b65a; --warn-bg: #3a2c12; --err: #ff8a80; --err-bg: #3d1a18; --code-bg: #242a35;
-    }
+    color-scheme: light;
+    --white: #ffffff; --rose: #D36279; --blush: #F8C8D5; --coral: #EC5564;
+    --blush-soft: #FDEEF2;  /* #F8C8D5 를 흰색에 연하게 섞은 배경 */
+    --bg: var(--white); --card: var(--white); --text: #3B2A30; --muted: #7A5560; --line: var(--blush);
+    --accent: var(--rose); --accent-text: var(--white);
+    --ok: var(--rose); --ok-bg: var(--blush-soft);
+    --warn: #9E3C50; --warn-bg: var(--blush-soft);
+    --err: var(--coral); --err-bg: #FDE6E8; --code-bg: var(--blush-soft);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* .row/.saved 의 display:flex 가 hidden 속성을 덮어쓰지 않도록 */
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 15px/1.6 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  body::before { content: ""; display: block; height: 6px;
+                 background: linear-gradient(90deg, var(--blush), var(--rose), var(--coral)); }
   main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 24px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  h1 { font-size: 24px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; color: var(--rose); }
   h1 img { width: 44px; height: 44px; }
   .lead { color: var(--muted); margin: 0 0 20px; }
-  .notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 14px; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .notice { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--blush); border-left: 4px solid var(--coral);
+            border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 14px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 2px 10px rgba(211, 98, 121, 0.08); }
   section h2 { font-size: 17px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .step { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
           align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
@@ -45,11 +50,14 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
   button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent);
            background: var(--accent); color: var(--accent-text); cursor: pointer; }
-  button.secondary { background: transparent; color: var(--accent); }
+  button:not(:disabled):hover, a.btn:hover { background: var(--coral); border-color: var(--coral); }
+  button.secondary { background: var(--white); color: var(--accent); border-color: var(--blush); }
+  button.secondary:not(:disabled):hover { background: var(--blush-soft); border-color: var(--rose); color: var(--accent); }
+  input:focus, textarea:focus { outline: 2px solid var(--blush); border-color: var(--rose); }
   a.btn { display: inline-block; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent);
           background: var(--accent); color: var(--accent-text); text-decoration: none; }
   .hint { color: var(--muted); font-size: 13px; }
-  .saved { background: var(--ok-bg); color: var(--ok); border-radius: 8px; padding: 10px 12px; font-size: 14px;
+  .saved { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--blush); border-radius: 8px; padding: 10px 12px; font-size: 14px;
            display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .saved button { padding: 5px 10px; font-size: 13px; }
   button:disabled { opacity: .5; cursor: default; }
