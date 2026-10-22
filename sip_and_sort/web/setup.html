@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sip-and-sort 설정</title>
+<link rel="icon" type="image/png" href="/icon.png">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5d6677; --line: #dde1e8;
+    --accent: #2f5bea; --accent-text: #ffffff; --ok: #1a7f4b; --ok-bg: #e6f4ec;
+    --warn: #9a5b00; --warn-bg: #fdf1dc; --err: #b42318; --err-bg: #fde8e7; --code-bg: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b1f27; --text: #e7eaf0; --muted: #a0a8b8; --line: #2d3340;
+      --accent: #6f8ff7; --accent-text: #0e1220; --ok: #6fd39d; --ok-bg: #173226;
+      --warn: #f2b65a; --warn-bg: #3a2c12; --err: #ff8a80; --err-bg: #3d1a18; --code-bg: #242a35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.6 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 24px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 44px; height: 44px; }
+  .lead { color: var(--muted); margin: 0 0 20px; }
+  .notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 14px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  section h2 { font-size: 17px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .step { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+          align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--code-bg); color: var(--muted); }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.err { background: var(--err-bg); color: var(--err); }
+  p.help, ol.help { color: var(--muted); font-size: 14px; margin: 6px 0 12px; }
+  ol.help { padding-left: 20px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  input[type=text], input[type=number], textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  textarea { min-height: 190px; font-family: ui-monospace, Consolas, "D2Coding", monospace; font-size: 13px; resize: vertical; }
+  textarea.short { min-height: 90px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent);
+           background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .msg { font-size: 14px; margin-top: 10px; min-height: 1em; white-space: pre-wrap; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
+  pre { background: var(--code-bg); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  details summary { cursor: pointer; font-weight: 600; font-size: 14px; margin-top: 8px; }
+  a { color: var(--accent); }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="/icon.png" alt="">sip-and-sort 설정</h1>
+  <p class="lead">본인의 Google 계정과 이름(활동명)을 연결하면, 협업 제안 메일을 분류하고 답장 <b>초안</b>을 만들어 둡니다.</p>
+  <div class="notice">이 페이지는 내 PC(127.0.0.1)에서만 열립니다. 입력한 값은 이 PC의 파일에만 저장되며, 이 프로그램은 메일을 <b>절대 자동 발송하지 않습니다</b>.</div>
+
+  <section id="s1">
+    <h2><span class="step">1</span> 내 Google OAuth 클라이언트 등록 <span class="badge" id="b1">확인 중</span></h2>
+    <p class="help">이 저장소에는 어떤 API 키도 들어 있지 않습니다. 각자 본인의 Google Cloud 프로젝트에서 발급한 <code>credentials.json</code>을 등록해야 합니다.</p>
+    <details>
+      <summary>credentials.json 발급 방법</summary>
+      <ol class="help">
+        <li><a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>에서 새 프로젝트를 만듭니다.</li>
+        <li>[API 및 서비스] → [라이브러리]에서 <b>Gmail API</b>를 검색해 [사용]을 누릅니다.</li>
+        <li>[OAuth 동의 화면]에서 사용자 유형 <b>외부</b>를 선택하고, 앱 이름·이메일을 입력합니다. [테스트 사용자]에 본인 Gmail 주소를 추가합니다.</li>
+        <li>[사용자 인증 정보] → [사용자 인증 정보 만들기] → [OAuth 클라이언트 ID] → 애플리케이션 유형 <b>데스크톱 앱</b>을 선택해 만듭니다.</li>
+        <li>[JSON 다운로드]로 받은 파일을 아래에서 선택합니다.</li>
+      </ol>
+    </details>
+    <label for="credFile">credentials.json 파일 선택</label>
+    <input type="file" id="credFile" accept=".json,application/json">
+    <label for="credText">또는 JSON 내용 붙여넣기</label>
+    <textarea id="credText" class="short" placeholder='{"installed": {"client_id": "...", "client_secret": "...", ...}}'></textarea>
+    <div class="row"><button id="saveCred">등록하기</button></div>
+    <div class="msg" id="m1"></div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="step">2</span> 이름(활동명)과 답장 문구 <span class="badge" id="b2">확인 중</span></h2>
+    <p class="help">입력한 이름은 답장 초안의 인사말과 서명에 <code>{activity_name}</code> 자리로 들어갑니다.</p>
+    <label for="name">이름(활동명)</label>
+    <input type="text" id="name" maxlength="50" placeholder="예: 크리에이터명">
+    <label for="lookback">몇 시간 이내 메일을 검사할까요?</label>
+    <input type="number" id="lookback" min="1" max="720" value="24">
+    <p class="help">사용 가능한 자리표시자: <code>{activity_name}</code> 내 이름, <code>{contact_name}</code> 상대 담당자 이름, <code>{original_subject}</code> 받은 메일 제목. 알 수 없는 값은 초안에 <code>[ ]</code>로 남습니다.</p>
+    <div id="templates"></div>
+    <div class="row"><button id="saveProfile">저장하기</button></div>
+    <div class="msg" id="m2"></div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="step">3</span> Gmail 연결 <span class="badge" id="b3">확인 중</span></h2>
+    <p class="help">버튼을 누르면 새 브라우저 탭에서 Google 로그인 화면이 열립니다. "확인되지 않은 앱" 경고가 나오면 본인이 만든 앱이므로 [고급] → [(앱 이름)(으)로 이동]을 눌러 진행하세요. 권한은 메일 읽기·라벨·초안 저장에 쓰입니다.</p>
+    <div class="row">
+      <button id="connect">Gmail 연결하기</button>
+      <button id="disconnect" class="secondary">연결 해제</button>
+    </div>
+    <div class="msg" id="m3"></div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="step">4</span> 미리 실행해 보기 (dry-run)</h2>
+    <p class="help">실제 라벨/초안 작업 없이, 최근 메일이 어떻게 분류되고 어떤 초안이 만들어질지만 보여줍니다.</p>
+    <div class="row"><button id="preview">미리 실행</button><button id="shutdown" class="secondary">설정 종료</button></div>
+    <div class="msg" id="m4"></div>
+    <pre id="out" hidden></pre>
+  </section>
+
+  <footer>설정이 끝나면 터미널에서 <code>sip-and-sort run</code> 으로 실행하세요.</footer>
+</main>
+<script>
+(() => {
+  const TOKEN = new URLSearchParams(location.search).get("t") || "";
+  history.replaceState(null, "", "/");  // 주소창/기록에서 토큰 숨김
+  const $ = (id) => document.getElementById(id);
+  let polling = null;
+
+  async function api(path, body) {
+    const opts = { headers: { "X-Setup-Token": TOKEN } };
+    if (body !== undefined) {
+      opts.method = "POST";
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(path, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    return data;
+  }
+  function msg(id, text, kind) { const el = $(id); el.textContent = text || ""; el.className = "msg " + (kind || ""); }
+  function badge(id, ok, okText, noText) { const el = $(id); el.textContent = ok ? okText : noText; el.className = "badge " + (ok ? "ok" : ""); }
+
+  function renderTemplates(status) {
+    const box = $("templates");
+    box.textContent = "";
+    for (const [key, label] of Object.entries(status.template_labels)) {
+      const lab = document.createElement("label");
+      lab.htmlFor = "tpl_" + key; lab.textContent = label;
+      const ta = document.createElement("textarea");
+      ta.id = "tpl_" + key; ta.value = status.templates[key];
+      const row = document.createElement("div"); row.className = "row";
+      const reset = document.createElement("button");
+      reset.className = "secondary"; reset.type = "button"; reset.textContent = "기본 문구로 되돌리기";
+      reset.onclick = () => { ta.value = status.default_templates[key]; };
+      row.append(reset);
+      box.append(lab, ta, row);
+    }
+  }
+
+  async function refresh(first) {
+    const s = await api("/api/status");
+    badge("b1", s.credentials, "등록됨", "미등록");
+    badge("b2", s.config_exists && s.activity_name, "저장됨", "미저장");
+    if (first) {
+      $("name").value = s.activity_name || "";
+      $("lookback").value = Math.round(s.lookback_hours || 24);
+      renderTemplates(s);
+    }
+    const o = s.oauth;
+    if (o.state === "running") {
+      badge("b3", false, "", "로그인 진행 중");
+      msg("m3", o.message);
+    } else if (s.token) {
+      badge("b3", true, "연결됨", "");
+      if (o.state !== "error") msg("m3", s.email ? `연결된 계정: ${s.email}` : "저장된 토큰이 있습니다.", "ok");
+    } else {
+      badge("b3", false, "", o.state === "error" ? "오류" : "미연결");
+      if (o.state === "error") { $("b3").className = "badge err"; msg("m3", o.message, "err"); }
+      else msg("m3", o.message);
+    }
+    if (o.state === "error" && s.token) msg("m3", o.message, "err");
+    $("connect").disabled = o.state === "running";
+    if (o.state !== "running" && polling) { clearInterval(polling); polling = null; }
+    return s;
+  }
+
+  $("credFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (file) $("credText").value = await file.text();
+  });
+  $("saveCred").onclick = async () => {
+    try {
+      await api("/api/credentials", { json: $("credText").value });
+      $("credText").value = ""; $("credFile").value = "";
+      msg("m1", "등록되었습니다. (보안을 위해 내용은 다시 표시하지 않습니다)", "ok");
+      refresh();
+    } catch (err) { msg("m1", err.message, "err"); }
+  };
+  $("saveProfile").onclick = async () => {
+    const templates = {};
+    document.querySelectorAll("#templates textarea").forEach((ta) => { templates[ta.id.slice(4)] = ta.value; });
+    try {
+      await api("/api/profile", { activity_name: $("name").value, lookback_hours: $("lookback").value, templates });
+      msg("m2", "config.yaml 에 저장했습니다.", "ok");
+      refresh();
+    } catch (err) { msg("m2", err.message, "err"); }
+  };
+  $("connect").onclick = async () => {
+    try {
+      await api("/api/connect", {});
+      msg("m3", "Google 로그인 창을 여는 중...");
+      if (!polling) polling = setInterval(() => refresh().catch(() => {}), 1500);
+      refresh();
+    } catch (err) { msg("m3", err.message, "err"); }
+  };
+  $("disconnect").onclick = async () => {
+    try { await api("/api/disconnect", {}); refresh(); } catch (err) { msg("m3", err.message, "err"); }
+  };
+  $("preview").onclick = async () => {
+    $("preview").disabled = true; msg("m4", "메일을 불러오는 중..."); $("out").hidden = true;
+    try {
+      const r = await api("/api/preview", {});
+      $("out").textContent = r.output; $("out").hidden = false; msg("m4", "");
+    } catch (err) { msg("m4", err.message, "err"); }
+    finally { $("preview").disabled = false; }
+  };
+  $("shutdown").onclick = async () => {
+    try { await api("/api/shutdown", {}); } catch (_) {}
+    document.querySelector("main").innerHTML = "<h1>설정을 종료했습니다</h1><p class='lead'>이 탭을 닫고 터미널에서 <code>sip-and-sort run</code> 을 실행하세요.</p>";
+  };
+
+  refresh(true).catch((err) => msg("m1", "상태를 불러오지 못했습니다: " + err.message, "err"));
+})();
+</script>
+</body>
+</html>

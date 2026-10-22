@@ -1,0 +1,83 @@
+# 🍓 sip-and-sort 정기 실행 (선택 기능)
+#
+# 필요한 Repository secrets (Settings → Secrets and variables → Actions):
+#   GMAIL_CREDENTIALS_JSON  본인의 credentials.json 전체 내용
+#   GMAIL_TOKEN_JSON        로컬에서 `sip-and-sort setup`(또는 auth) 후 생성된 token.json 전체 내용
+#   GMAIL_CONFIG_YAML      본인의 config.yaml 전체 내용
+# 시크릿이 등록되지 않은 저장소(예: 방금 fork/clone 한 저장소)에서는 아무 작업 없이 성공 처리됩니다.
+#
+# ⚠ 공개(public) 저장소의 Actions 로그는 누구나 볼 수 있습니다.
+#   그래서 아래 실행은 --summary-only 로 건수만 출력합니다. 메일 목록을 로그로 보고 싶다면
+#   반드시 비공개(private) 저장소에서 --summary-only 를 빼고 사용하세요.
+
+name: sip-and-sort
+
+on:
+  schedule:
+    - cron: "0 * * * *"      # 매시간 정각 (cron 은 UTC 기준)
+    # - cron: "0 0 * * *"    # 하루 1번(09:00 KST)만 돌리려면 위 줄 대신 이 줄 + SINCE 를 26h 로
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "dry-run (라벨/초안 작업 없이 결과만 출력)"
+        type: boolean
+        default: true
+      since:
+        description: "검사 기간 (예: 24h, 48h)"
+        default: "24h"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sip-and-sort
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_SECRETS: ${{ secrets.GMAIL_TOKEN_JSON != '' && secrets.GMAIL_CREDENTIALS_JSON != '' && secrets.GMAIL_CONFIG_YAML != '' }}
+      # 정기 실행(매시간)은 3시간을 겹쳐 검사해 누락을 막는다 (이미 처리한 스레드는 자동으로 건너뜀)
+      SINCE: ${{ github.event.inputs.since || '3h' }}
+    steps:
+      - name: 시크릿 미설정 안내
+        if: env.HAS_SECRETS != 'true'
+        run: echo "GMAIL_CREDENTIALS_JSON / GMAIL_TOKEN_JSON / GMAIL_CONFIG_YAML 시크릿이 없어 실행을 건너뜁니다."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_SECRETS == 'true'
+
+      - uses: actions/setup-python@v5
+        if: env.HAS_SECRETS == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 설치
+        if: env.HAS_SECRETS == 'true'
+        run: pip install .
+
+      - name: 시크릿을 파일로 기록
+        if: env.HAS_SECRETS == 'true'
+        env:
+          GMAIL_CREDENTIALS_JSON: ${{ secrets.GMAIL_CREDENTIALS_JSON }}
+          GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
+          GMAIL_CONFIG_YAML: ${{ secrets.GMAIL_CONFIG_YAML }}
+        run: |
+          umask 077
+          printf '%s' "$GMAIL_CREDENTIALS_JSON" > credentials.json
+          printf '%s' "$GMAIL_TOKEN_JSON" > token.json
+          printf '%s' "$GMAIL_CONFIG_YAML" > config.yaml
+
+      - name: 실행 (초안만 저장, 발송 없음)
+        if: env.HAS_SECRETS == 'true'
+        run: |
+          ARGS="--non-interactive --summary-only --since $SINCE --config config.yaml"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          sip-and-sort run $ARGS
+
+      - name: 비밀 파일 삭제
+        if: always() && env.HAS_SECRETS == 'true'
+        run: rm -f credentials.json token.json config.yaml

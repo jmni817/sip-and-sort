@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sip-and-sort"
+version = "0.1.0"
+description = "Gmail 협업 제안 메일 자동 분류 + 답장 초안 작성 도구 (자동 발송 없음)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "google-api-python-client>=2.100",
+    "google-auth-httplib2>=0.2",
+    "google-auth-oauthlib>=1.2",
+    "PyYAML>=6.0",
+]
+keywords = ["gmail", "creator", "influencer", "sponsorship", "email-automation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Korean",
+    "Topic :: Communications :: Email",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+sip-and-sort = "sip_and_sort.main:main"
+
+[tool.setuptools]
+packages = ["sip_and_sort"]
+
+[tool.setuptools.package-data]
+sip_and_sort = ["web/*.html", "web/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

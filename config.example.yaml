@@ -1,0 +1,85 @@
+# sip-and-sort 설정 예시
+#
+# 가장 쉬운 방법: `sip-and-sort setup` 을 실행하면 열리는 설정 페이지에서
+# 이름(활동명)과 답장 문구를 입력하면 config.yaml 이 자동으로 만들어집니다.
+#
+# 직접 만들려면 이 파일을 config.yaml 로 복사한 뒤 값을 채우세요.
+#   cp config.example.yaml config.yaml
+# config.yaml 은 .gitignore 에 포함되어 있어 커밋되지 않습니다.
+
+# 답장 초안 인사말/서명에 들어갈 이름(활동명). 템플릿의 {activity_name} 자리에 들어갑니다.
+activity_name: ""
+
+# 몇 시간 이내에 받은 메일을 검사할지 (CLI 의 --since 로 1회 override 가능)
+lookback_hours: 24
+
+# 한 번 실행에서 검사할 최대 메일 수
+max_messages: 200
+
+# Gmail 검색어에 덧붙일 추가 조건 (예: "in:inbox", "-category:social")
+extra_query: ""
+
+# 포워딩/별칭으로 받는 본인 주소가 있다면 추가 (BCC 대량메일 판별 시 본인 주소로 인정)
+my_addresses: []
+
+# OAuth 파일 경로 (상대 경로는 이 설정 파일이 있는 폴더 기준)
+credentials_path: credentials.json
+token_path: token.json
+
+gmail_labels:
+  brand_sponsorship: "협업제안/브랜드협찬"
+  paid_ad: "협업제안/유료광고"
+  other: "협업제안/기타"
+  draft_done: "답장초안완료"
+
+keywords:
+  korean: [협업, 제휴, 협찬, 광고, PPL, 브랜드, 캠페인, 서포터즈, 앰버서더]
+  english: [collaboration, collab, sponsorship, sponsor, partnership, campaign, advertise, advertising, PR, "brand deal", ambassador]
+  # List-Unsubscribe 헤더, (광고) 제목 표기, noreply 발신, 발신자=수신자, BCC 수신 등 대량메일 자동 제외
+  exclude_bulk_mail_heuristics: true
+
+# 답장 초안 템플릿 (A/B/C 상황별)
+# 사용 가능한 자리표시자: {activity_name} {contact_name} {original_subject}
+# 알 수 없는 값은 "[ ]" 로 남아 초안에서 직접 채울 수 있습니다.
+templates:
+  # (A) 단가/비용 문의 → 단가 안내
+  price_quote: |
+    안녕하세요, {contact_name}님.
+    {activity_name}입니다. 협업 제안 주셔서 감사합니다.
+
+    문의 주신 단가는 콘텐츠 형식과 진행 범위에 따라 달라집니다.
+    아래 내용을 알려주시면 확인 후 정확한 견적을 안내드리겠습니다.
+
+    - 희망 콘텐츠 형식 및 수량:
+    - 업로드 희망 일정:
+    - 콘텐츠 2차 활용 / 광고 집행 여부 및 기간:
+
+    감사합니다.
+    {activity_name} 드림
+
+  # (B) 무가 협업(비용 없이 제품만 제공 + 콘텐츠 제작 의무) → 거절
+  decline_unpaid: |
+    안녕하세요, {contact_name}님.
+    {activity_name}입니다. 좋은 제안 주셔서 감사합니다.
+
+    다만 콘텐츠 제작이 필요한 협업은 현재 제품 제공만으로는 진행하지 않고 있습니다.
+    유료 협업으로 검토가 가능하시다면 다시 연락 주시면 감사하겠습니다.
+
+    다음에 좋은 기회로 함께할 수 있기를 바랍니다.
+    {activity_name} 드림
+
+  # (C) 비용·콘텐츠 의무 없는 순수 선물 제안 → 수락
+  gift_accept: |
+    안녕하세요, {contact_name}님.
+    {activity_name}입니다. 따뜻한 제안 주셔서 감사합니다.
+
+    콘텐츠 제작 의무가 없는 선물로 이해하고 감사히 받겠습니다.
+    배송받을 정보는 확인 후 별도로 회신드리겠습니다.
+
+    감사합니다.
+    {activity_name} 드림
+
+# (고급) 분류 규칙 키워드 오버라이드. 지정한 항목만 기본 목록을 대체합니다.
+# 사용 가능 키: paid_ad, brand_sponsorship, unpaid, content_obligation, no_obligation, gift, price_inquiry
+# 기본값은 sip_and_sort/classifier.py 의 DEFAULT_RULES 참고.
+rules: {}
