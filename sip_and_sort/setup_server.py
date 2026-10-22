@@ -78,6 +78,7 @@ class SetupState:
     def __init__(self, config_path: Path):
         self.config_path = config_path.resolve()
         self.lock = threading.Lock()
+        self.lock_run = threading.Lock()  # 실행 버튼 연타로 초안이 중복 생성되지 않도록
         self.oauth = {"state": "idle", "message": ""}
         self.connected_email: str | None = None
 
@@ -191,7 +192,8 @@ class SetupState:
         self.connected_email = None
         self.oauth = {"state": "idle", "message": "연결이 해제되었습니다."}
 
-    def preview(self) -> str:
+    def run_once(self, *, dry_run: bool) -> str:
+        """페이지에서 1회 실행. dry_run=False 여도 라벨/초안만 다루며 발송하지 않는다."""
         try:
             config = load_config(self.config_path)
         except ConfigError as exc:
@@ -202,7 +204,8 @@ class SetupState:
             creds = load_credentials(self.credentials_path, self.token_path, interactive=False)
         except AuthError as exc:
             raise ValueError(str(exc)) from exc
-        report = run(GmailClient(build_service(creds)), config, dry_run=True)
+        with self.lock_run:
+            report = run(GmailClient(build_service(creds)), config, dry_run=dry_run)
         return format_report(report, show_drafts=True)
 
 
@@ -296,7 +299,9 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                     state.disconnect()
                     return self._json(HTTPStatus.OK, {"ok": True})
                 if path == "/api/preview":
-                    return self._json(HTTPStatus.OK, {"ok": True, "output": state.preview()})
+                    return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=True)})
+                if path == "/api/run":
+                    return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=False)})
                 if path == "/api/shutdown":
                     self._json(HTTPStatus.OK, {"ok": True})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
@@ -314,14 +319,19 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
 def serve(config_path: str | Path, *, port: int = 8765, open_browser: bool = True) -> None:
     state = SetupState(Path(config_path))
     access_token = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer(("127.0.0.1", port), None)  # type: ignore[arg-type]
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), None)  # type: ignore[arg-type]
+    except OSError:  # 포트 사용 중(이미 실행 중 등) → 빈 포트 자동 선택
+        server = ThreadingHTTPServer(("127.0.0.1", 0), None)  # type: ignore[arg-type]
     actual_port = server.server_address[1]
     allowed = {f"127.0.0.1:{actual_port}", f"localhost:{actual_port}"}
     server.RequestHandlerClass = _make_handler(state, access_token, allowed)
     url = f"http://127.0.0.1:{actual_port}/?t={access_token}"
-    print("sip-and-sort 설정 페이지를 시작합니다. (이 PC에서만 접속 가능)")
-    print(f"  {url}")
-    print("  설정을 마치면 페이지의 [설정 종료] 버튼을 누르거나 Ctrl+C 로 종료하세요.")
+    # exe 를 리다이렉트해 실행하면 stdout 이 버퍼링되므로 flush 로 주소를 바로 보여준다
+    print("sip-and-sort 설정 페이지를 시작합니다. (이 PC에서만 접속 가능)", flush=True)
+    print(f"  {url}", flush=True)
+    print(f"  설정 파일 위치: {state.config_path.parent}", flush=True)
+    print("  다 쓰셨으면 페이지의 [종료] 버튼을 누르거나 이 창을 닫으세요.", flush=True)
     if open_browser:
         webbrowser.open(url)
     try:
