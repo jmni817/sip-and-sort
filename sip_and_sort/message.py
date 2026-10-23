@@ -6,8 +6,12 @@ import base64
 import html
 import re
 from dataclasses import dataclass, field
+from email.message import Message
 from email.utils import getaddresses, parseaddr
 from typing import Any
+
+# 한국 메일에서 흔한 문자셋 이름들. EUC-KR 의 확장판인 CP949 로 읽어야 일부 글자가 깨지지 않는다.
+_KOREAN_CHARSETS = {"euc-kr", "euckr", "ks_c_5601-1987", "ks_c_5601", "ksc5601", "x-windows-949", "windows-949", "cp949"}
 
 
 @dataclass
@@ -37,9 +41,35 @@ class Email:
         return reply_to or self.sender
 
 
-def _decode_b64(data: str) -> str:
+def _part_charset(part: dict[str, Any]) -> str | None:
+    """메일 파트의 Content-Type 헤더에 적힌 charset (없으면 None)."""
+    for header in part.get("headers") or []:
+        if header.get("name", "").lower() == "content-type":
+            msg = Message()
+            msg["Content-Type"] = header.get("value", "")
+            charset = msg.get_content_charset()
+            if charset:
+                return "cp949" if charset in _KOREAN_CHARSETS else charset
+    return None
+
+
+def decode_body_bytes(raw: bytes, charset: str | None) -> str:
+    """메일에 적힌 charset 으로 읽고, 없거나 틀렸으면 UTF-8 → CP949(EUC-KR) 순서로 시도한다.
+
+    Gmail API 는 본문을 원래 인코딩 그대로 돌려주므로, 무조건 UTF-8 로 읽으면
+    EUC-KR 한국어 메일이 깨져 키워드를 찾지 못한다.
+    """
+    for encoding in dict.fromkeys(filter(None, (charset, "utf-8", "cp949"))):
+        try:
+            return raw.decode(encoding)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _decode_b64(data: str, charset: str | None = None) -> str:
     padded = data + "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8", errors="replace")
+    return decode_body_bytes(base64.urlsafe_b64decode(padded.encode("ascii")), charset)
 
 
 def html_to_text(markup: str) -> str:
@@ -57,9 +87,9 @@ def _collect_parts(payload: dict[str, Any], plain: list[str], rich: list[str]) -
     if payload.get("filename"):
         return  # 첨부파일은 무시
     if data and mime == "text/plain":
-        plain.append(_decode_b64(data))
+        plain.append(_decode_b64(data, _part_charset(payload)))
     elif data and mime == "text/html":
-        rich.append(_decode_b64(data))
+        rich.append(_decode_b64(data, _part_charset(payload)))
     for part in payload.get("parts") or []:
         _collect_parts(part, plain, rich)
 
