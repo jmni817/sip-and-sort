@@ -91,13 +91,19 @@ def mask_text(text: str, names: tuple[str, ...] = ()) -> str:
     return text
 
 
-def build_messages(email: Email) -> list[dict[str, str]]:
+def build_messages(email: Email, bulk_reason: str | None = None) -> list[dict[str, str]]:
     body = strip_quoted(email.body)[:MAX_BODY_CHARS]
     names = (email.sender_name,)
     content = (
         f"제목: {mask_text(email.subject, names)}\n"
         f"본문:\n<<<\n{mask_text(body, names)}\n>>>"
     )
+    if bulk_reason:
+        content += (
+            f"\n\n참고: 이 메일은 여러 수신자에게 한꺼번에 보낸 대량 발송 메일로 보입니다 ({bulk_reason}). "
+            "인플루언서·체험단·서포터즈·앰버서더 모집처럼 크리에이터에게 협업을 제안하는 내용이면 is_collab=true, "
+            "쇼핑 할인·이벤트 홍보·뉴스레터처럼 일반 소비자 대상 광고나 소식이면 is_collab=false 로 판단한다."
+        )
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": content}]
 
 
@@ -174,8 +180,8 @@ class LLMClassifier:
     def min_confidence(self) -> float:
         return self.settings.min_confidence
 
-    def classify(self, email: Email) -> AIVerdict:
-        return parse_verdict(self._chat(build_messages(email)))
+    def classify(self, email: Email, bulk_reason: str | None = None) -> AIVerdict:
+        return parse_verdict(self._chat(build_messages(email, bulk_reason)))
 
     def _chat(self, messages: list[dict[str, str]]) -> str:
         url = normalize_base_url(self.settings.base_url) + "/chat/completions"

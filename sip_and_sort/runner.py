@@ -12,7 +12,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
+from email.utils import parseaddr
+
 from .classifier import (
+    BULK_SENDER_LOCALPART,
     Category,
     Scenario,
     analysis_text,
@@ -40,6 +43,7 @@ class MailResult:
     reasons: list[str]
     draft_body: str | None = None
     decided_by: str = "rule"  # "rule" | "ai"
+    bulk_reason: str | None = None  # 대량발송으로 보였지만 AI 가 협업으로 판단한 경우 그 사유
 
     @property
     def needs_review(self) -> bool:
@@ -96,13 +100,19 @@ def _collab_hints(mail: Email, rules: dict[str, list[str]]) -> list[str]:
     return find_keywords(analysis_text(mail), [kw for key in keys for kw in rules[key]])
 
 
-def _ask_ai(ai, mail: Email, report: RunReport):
+def _is_noreply(address: str) -> bool:
+    _, email_addr = parseaddr(address)
+    local = email_addr.split("@", 1)[0]
+    return bool(local) and bool(BULK_SENDER_LOCALPART.match(local))
+
+
+def _ask_ai(ai, mail: Email, report: RunReport, bulk_reason: str | None = None):
     """AI 판단 1회. 실패하면 None (규칙 결과를 그대로 쓴다)."""
     from .llm import LLMError
 
     report.ai_calls += 1
     try:
-        return ai.classify(mail)
+        return ai.classify(mail, bulk_reason=bulk_reason) if bulk_reason else ai.classify(mail)
     except LLMError as exc:
         report.ai_errors.append(f"{mail.subject}: {exc}")
         log.debug("AI 판단 실패", exc_info=True)
@@ -155,11 +165,39 @@ def run(
             report.scanned_threads += 1
 
             candidate = check_candidate(mail, config, my_addresses)
-            if candidate.excluded_reason:
-                report.excluded_bulk.append((mail.sender, mail.subject, candidate.excluded_reason))
-                continue
+            bulk_reason = candidate.excluded_reason
+            if bulk_reason is None and not candidate.matched_keywords:
+                if config["keywords"].get("exclude_bulk_mail_heuristics", True):
+                    bulk_reason = detect_bulk_mail(mail, my_addresses)
 
-            if candidate.is_candidate:
+            if bulk_reason:
+                # 대량발송 메일: 인플루언서·체험단 '모집'처럼 진짜 협업 제안일 수도 있어서
+                # AI 가 켜져 있으면 판단을 맡기고, 꺼져 있으면 (키워드로는 구분이 안 되므로) 제외한다.
+                hints = candidate.matched_keywords or _collab_hints(mail, rules)
+                if ai is None or not hints:
+                    if candidate.matched_keywords:
+                        report.excluded_bulk.append((mail.sender, mail.subject, bulk_reason))
+                    continue
+                verdict = _ask_ai(ai, mail, report, bulk_reason=bulk_reason)
+                if not (verdict and verdict.is_collab and verdict.confidence >= ai.min_confidence):
+                    why = f"AI: 협업 아님 ({verdict.reason})" if verdict else "AI 판단 실패"
+                    report.excluded_bulk.append((mail.sender, mail.subject, f"{bulk_reason} · {why}"))
+                    continue
+                result = MailResult(
+                    thread_id=thread_id,
+                    sender=mail.sender,
+                    subject=mail.subject,
+                    category=verdict.category,
+                    scenario=verdict.scenario,
+                    matched_keywords=hints,
+                    reasons=[f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"],
+                    decided_by="ai",
+                    bulk_reason=bulk_reason,
+                )
+                if result.scenario is not None and _is_noreply(mail.reply_to_address):
+                    result.reasons.append(f"{result.scenario.display}에 해당하지만 답장할 수 없는 주소라 초안 생략")
+                    result.scenario = None
+            elif candidate.is_candidate:
                 # 1) 규칙으로 분류
                 category = categorize(mail, rules)
                 scenario_result = detect_scenario(mail, rules)
@@ -184,8 +222,6 @@ def run(
                 # 3) 협업 키워드는 없지만 협업일 수 있는 신호가 있는 메일만 AI 에게 묻는다
                 if ai is None:
                     continue
-                if config["keywords"].get("exclude_bulk_mail_heuristics", True) and detect_bulk_mail(mail, my_addresses):
-                    continue  # 뉴스레터·광고 메일은 AI 에 보내지 않는다
                 hints = _collab_hints(mail, rules)
                 if not hints:
                     continue
@@ -274,7 +310,7 @@ def format_report(report: RunReport, *, show_drafts: bool = False, summary_only:
 
     lines += ["", f"[답장 초안 {verb}] {len(report.drafted)}건"]
     for r in report.drafted:
-        tag = " [AI]" if r.decided_by == "ai" else ""
+        tag = (" [AI]" if r.decided_by == "ai" else "") + (" [대량]" if r.bulk_reason else "")
         lines.append(f"  - [{r.scenario.display}] [{r.category.display}]{tag} {r.sender} | {r.subject}")
         if r.decided_by == "ai" and r.reasons:
             lines.append(f"      {r.reasons[0]}")
@@ -283,7 +319,8 @@ def format_report(report: RunReport, *, show_drafts: bool = False, summary_only:
 
     lines += ["", f"[직접 검토 필요] {len(report.review_needed)}건"]
     for r in report.review_needed:
-        lines.append(f"  - [{r.category.display}] {r.sender} | {r.subject}")
+        tag = (" [AI]" if r.decided_by == "ai" else "") + (" [대량]" if r.bulk_reason else "")
+        lines.append(f"  - [{r.category.display}]{tag} {r.sender} | {r.subject}")
         if r.reasons:
             lines.append(f"      사유: {'; '.join(r.reasons)}")
 
