@@ -50,6 +50,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # CHANGELOG.md 에서 "## <태그> ..." 부터 다음 "## " 전까지를 릴리스 설명으로 사용
+          awk -v tag="$GITHUB_REF_NAME" '
+            index($0, "## " tag " ") == 1 || $0 == "## " tag { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::CHANGELOG.md 에 $GITHUB_REF_NAME 항목이 없어 기본 설명만 넣습니다."
+          fi
+          {
+            echo
+            echo "---"
+            echo "**다운로드:** 아래 \`sip-and-sort.exe\`를 받아 더블클릭하면 설정 페이지가 열립니다. 사용법은 README를 참고하세요."
+            echo "이 프로그램은 메일을 자동 발송하지 않으며, Gmail 임시보관함에 초안만 저장합니다."
+          } >> notes.md
           gh release create "$GITHUB_REF_NAME" dist/sip-and-sort.exe \
             --title "sip-and-sort $GITHUB_REF_NAME" \
-            --notes "Windows용 sip-and-sort.exe 입니다. 다운로드 후 더블클릭하면 설정 페이지가 열립니다. 사용법은 README를 참고하세요. 이 프로그램은 메일을 자동 발송하지 않으며 Gmail 임시보관함에 초안만 저장합니다."
+            --notes-file notes.md
