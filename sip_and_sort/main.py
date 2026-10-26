@@ -138,7 +138,10 @@ def _cmd_run(args) -> int:
     interactive = not (args.non_interactive or os.environ.get("CI"))
     client = GmailClient.from_files(credentials, token, interactive=interactive)
 
-    report = run(client, config, since_hours=args.since, dry_run=args.dry_run)
+    from .llm import load_classifier
+
+    ai = load_classifier(config, args.config)  # 켜져 있고 키가 있을 때만 (없으면 규칙만 사용)
+    report = run(client, config, since_hours=args.since, dry_run=args.dry_run, ai=ai)
     print(
         format_report(
             report,

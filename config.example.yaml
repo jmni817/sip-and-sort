@@ -79,6 +79,17 @@ templates:
     감사합니다.
     {activity_name} 드림
 
+# (선택) AI 판단: 키워드 규칙으로 판단하지 못한 메일만 LLM 에 물어봅니다.
+# OpenAI 호환 Chat Completions API 형식이면 어떤 서비스든 연결할 수 있습니다.
+# API 키는 이 파일이 아니라 api_key_path 파일(기본 llm_api_key.txt)이나
+# 환경변수 SIP_AND_SORT_LLM_API_KEY 에 넣습니다. (설정 페이지에서 입력하면 자동 저장)
+llm:
+  enabled: false
+  base_url: ""        # 예: https://api.openai.com/v1
+  model: ""           # 예: gpt-4o-mini
+  min_confidence: 0.7 # AI 확신도가 이보다 낮으면 '직접 검토'로 남김
+  api_key_path: llm_api_key.txt
+
 # (고급) 분류 규칙 키워드 오버라이드. 지정한 항목만 기본 목록을 대체합니다.
 # 사용 가능 키: paid_ad, brand_sponsorship, unpaid, content_obligation, no_obligation, gift, price_inquiry
 # 기본값은 sip_and_sort/classifier.py 의 DEFAULT_RULES 참고.

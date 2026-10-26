@@ -120,6 +120,10 @@
   .hint { color: var(--muted); font-size: 13px; font-weight: 500; }
 
   h3.sub { font-size: 15px; color: var(--rose); margin: 32px 0 6px; padding-top: 20px; border-top: 2px dashed var(--blush); font-weight: 800; }
+  label.check { display: flex; align-items: center; gap: 8px; margin-top: 14px; cursor: pointer; }
+  label.check input { width: 18px; height: 18px; accent-color: var(--rose); }
+  input[type=password] { width: 100%; padding: 12px 14px; border: 2px solid var(--blush); border-radius: 12px;
+                         background: #FFFCFD; color: var(--text); font: inherit; }
   .tpl { margin-top: 26px; }
   .tpl textarea { background: #FFF0F3; }  /* 답장 문구 입력창은 연핑크 */
   .tpl:first-child { margin-top: 14px; }
@@ -251,6 +255,32 @@
     </div>
   </section>
 
+  <section id="s5">
+    <h2><span class="step">+</span> AI 판단 연결 (선택) <span class="badge" id="b5">꺼짐</span></h2>
+    <p class="help">키워드 규칙으로 판단하지 못한 메일만 AI에게 물어봐요. 예: "제품 수령 후 릴스 1건 업로드해 주세요"처럼 '무가'라는 단어 없이 무가 협찬을 제안하는 메일.</p>
+    <details>
+      <summary>어떤 메일이 AI에게 전송되나요?</summary>
+      <ol class="help">
+        <li>협업 메일인데 규칙으로 A·B·C를 정하지 못한 메일</li>
+        <li>협업 키워드는 없지만 '업로드', '릴스', '제품 수령' 같은 신호가 있는 메일</li>
+        <li>신호가 없는 일반 메일과 뉴스레터·광고 메일은 <b>보내지 않아요</b>.</li>
+        <li>보내기 전에 이메일 주소·전화번호·링크는 가려요. 그래도 메일 내용은 입력한 AI 서비스로 전송되니, 그 서비스의 데이터 정책을 확인하세요.</li>
+      </ol>
+    </details>
+    <label class="check"><input type="checkbox" id="llmOn"> AI 판단 사용하기</label>
+    <label for="llmUrl">API 주소 (OpenAI 호환)</label>
+    <input type="text" id="llmUrl" placeholder="예: https://api.openai.com/v1" autocomplete="off" spellcheck="false">
+    <label for="llmModel">모델 이름</label>
+    <input type="text" id="llmModel" placeholder="예: gpt-4o-mini" autocomplete="off" spellcheck="false">
+    <label for="llmKey">API 키 <span class="hint" id="llmKeyHint"></span></label>
+    <input type="password" id="llmKey" placeholder="본인 API 키" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button id="saveLlm">저장하기</button>
+      <button id="testLlm" class="secondary" type="button">연결 테스트</button>
+    </div>
+    <div class="msg" id="m5"></div>
+  </section>
+
   <section id="s4">
     <h2><span class="step">4</span> 메일 정리하기</h2>
     <p class="help" id="acctLine" hidden></p>
@@ -304,7 +334,7 @@
     const ready = isReady(lastStatus);
     if (view === "home" && !ready) view = "onboarding";  // 연결이 끊기면 다시 전체 설정 화면으로
     document.body.dataset.view = view;
-    $("s1").hidden = $("s2").hidden = $("s3").hidden = view === "home";
+    $("s1").hidden = $("s2").hidden = $("s3").hidden = $("s5").hidden = view === "home";
     $("s4").hidden = view === "settings";
     $("settingsBar").hidden = !(view === "settings" || (view === "onboarding" && ready));
     $("toHome").textContent = view === "settings" ? "← 메일 정리 화면으로" : "설정 완료! 메일 정리 화면으로 →";
@@ -313,7 +343,8 @@
     $("acctLine").hidden = view !== "home";
     if (ready) {
       const who = lastStatus.activity_name ? `${lastStatus.activity_name}님` : "";
-      $("acctLine").textContent = [who, lastStatus.email || "Gmail 연결됨"].filter(Boolean).join(" · ");
+      const ai = lastStatus.llm && lastStatus.llm.enabled ? `AI 판단 켜짐 (${lastStatus.llm.model})` : "";
+      $("acctLine").textContent = [who, lastStatus.email || "Gmail 연결됨", ai].filter(Boolean).join(" · ");
     }
     $("footer").textContent = view === "home"
       ? "🍓 [지금 정리하기]를 누르면 협업 메일 정리 끝! 메일은 발송되지 않아요."
@@ -418,7 +449,13 @@
     $("credForm").hidden = s.credentials && !replacingCred;
     $("credProject").textContent = s.credentials_project ? ` (프로젝트: ${s.credentials_project})` : "";
     badge("b2", s.config_exists && s.activity_name, "저장됨", "미저장");
+    const llm = s.llm || {};
+    badge("b5", llm.enabled, "켜짐", "꺼짐");
+    $("llmKeyHint").textContent = llm.has_key ? "(저장된 키 있음 — 바꿀 때만 입력)" : "";
     if (first) {
+      $("llmOn").checked = !!llm.enabled;
+      $("llmUrl").value = llm.base_url || "";
+      $("llmModel").value = llm.model || "";
       $("name").value = s.activity_name || "";
       $("lookback").value = Math.round(s.lookback_hours || 24);
       renderTemplates(s);
@@ -458,6 +495,20 @@
 
   $("credReplace").onclick = () => { replacingCred = true; refresh(); };
   $("toSettings").onclick = () => goTo("settings");
+  $("saveLlm").onclick = async () => {
+    try {
+      await api("/api/llm", { enabled: $("llmOn").checked, base_url: $("llmUrl").value, model: $("llmModel").value, api_key: $("llmKey").value });
+      $("llmKey").value = "";  // 저장한 키는 다시 표시하지 않음
+      msg("m5", "저장했습니다. [연결 테스트]로 확인해 보세요.", "ok");
+      refresh();
+    } catch (err) { msg("m5", err.message, "err"); }
+  };
+  $("testLlm").onclick = async () => {
+    $("testLlm").disabled = true; msg("m5", "예시 메일로 AI에게 물어보는 중...");
+    try { const r = await api("/api/llm/test", {}); msg("m5", r.output, "ok"); }
+    catch (err) { msg("m5", err.message, "err"); }
+    finally { $("testLlm").disabled = false; }
+  };
   $("autoOn").onchange = saveAuto;
   $("autoInterval").onchange = saveAuto;
   // 자동 정리 결과를 받기 위해 상태를 주기적으로 확인 (로컬 요청이라 부담 없음)
