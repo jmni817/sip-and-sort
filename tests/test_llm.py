@@ -33,9 +33,11 @@ class FakeAI:
         self.verdicts = verdicts or {}
         self.error = error
         self.asked = []
+        self.bulk_reasons = {}
 
-    def classify(self, email):
+    def classify(self, email, bulk_reason=None):
         self.asked.append(email.subject)
+        self.bulk_reasons[email.subject] = bulk_reason
         if self.error:
             raise self.error
         return self.verdicts.get(email.subject, AIVerdict(False, Category.OTHER, None, 0.9, "협업 아님"))
@@ -83,8 +85,59 @@ def test_only_rule_unmatched_mails_are_sent_to_ai(config):
     client = make_client({f"thread-{n}": [gmail_message(n)] for n in names})
     ai = FakeAI()
     run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
-    # 규칙이 A/B/C 를 정한 메일, 뉴스레터, 신호 없는 일반 메일은 보내지 않는다
-    assert ai.asked == ["브랜드 협업 관련 미팅 요청"]
+    # 규칙이 A/B/C 를 정한 메일과 신호 없는 일반 메일은 보내지 않는다.
+    # 대량발송 메일은 협업 '모집'일 수도 있어 AI 가 판단한다.
+    assert sorted(ai.asked) == sorted(["브랜드 협업 관련 미팅 요청", "이번 주 브랜드 캠페인 소식"])
+    assert ai.bulk_reasons["이번 주 브랜드 캠페인 소식"].startswith("List-Unsubscribe")
+    assert ai.bulk_reasons["브랜드 협업 관련 미팅 요청"] is None
+
+
+# ---------------------------------------------------------------- 대량발송 메일도 AI 가 판단
+
+
+def test_bulk_newsletter_excluded_when_ai_says_not_collab(config):
+    ai = FakeAI({"이번 주 브랜드 캠페인 소식": AIVerdict(False, Category.OTHER, None, 0.95, "쇼핑몰 뉴스레터")})
+    client = make_client({"thread-newsletter": [gmail_message("newsletter")]})
+    report = run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
+    assert report.results == []
+    [(_, subject, reason)] = report.excluded_bulk
+    assert subject == "이번 주 브랜드 캠페인 소식" and "AI: 협업 아님" in reason
+
+
+def test_bulk_recruiting_mail_kept_when_ai_says_collab(config):
+    recruit = AIVerdict(True, Category.BRAND_SPONSORSHIP, Scenario.DECLINE_UNPAID, 0.9, "체험단 모집, 제품 제공 + 리뷰 의무")
+    ai = FakeAI({"인플루언서 협업 모집 안내": recruit})
+    client = make_client({"thread-bcc_bulk": [gmail_message("bcc_bulk")]})
+    report = run(client, config, now=1_800_000_000, ai=ai)
+    [result] = report.results
+    assert result.decided_by == "ai" and result.bulk_reason and result.scenario is Scenario.DECLINE_UNPAID
+    client.create_reply_draft.assert_called_once()
+    assert "[AI] [대량]" in format_report(report)
+
+
+def test_bulk_collab_from_noreply_gets_no_draft(config):
+    msg = gmail_message("bcc_bulk")
+    for header in msg["payload"]["headers"]:
+        if header["name"] == "From":
+            header["value"] = "모집 <no-reply@bulk-example.com>"
+    ai = FakeAI({"인플루언서 협업 모집 안내": AIVerdict(True, Category.BRAND_SPONSORSHIP, Scenario.DECLINE_UNPAID, 0.9, "모집")})
+    client = make_client({"thread-bcc_bulk": [msg]})
+    report = run(client, config, now=1_800_000_000, ai=ai)
+    [result] = report.results
+    assert result.scenario is None and any("답장할 수 없는 주소" in r for r in result.reasons)
+    client.create_reply_draft.assert_not_called()
+    assert client.add_thread_labels.call_args.args[1] == ["id:협업제안/브랜드협찬"]
+
+
+def test_bulk_mail_still_excluded_without_ai(config):
+    client = make_client({"thread-newsletter": [gmail_message("newsletter")]})
+    report = run(client, config, dry_run=True, now=1_800_000_000)
+    assert report.results == [] and len(report.excluded_bulk) == 1 and report.ai_calls == 0
+
+
+def test_prompt_mentions_bulk_mail():
+    content = build_messages(load_email("newsletter"), "List-Unsubscribe 헤더")[1]["content"]
+    assert "대량 발송" in content and "모집" in content
 
 
 def test_low_confidence_ai_keeps_manual_review(config):
@@ -98,7 +151,7 @@ def test_low_confidence_ai_keeps_manual_review(config):
 
 def test_ai_failure_falls_back_to_rules(config):
     ai = FakeAI(error=LLMError("AI API 오류 (HTTP 500)"))
-    names = ["ambiguous", "unpaid_implicit"]
+    names = ["ambiguous", "unpaid_implicit"]  # 대량발송 아닌 메일만
     client = make_client({f"thread-{n}": [gmail_message(n)] for n in names})
     report = run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
     assert not report.errors  # 실행은 멈추지 않는다
