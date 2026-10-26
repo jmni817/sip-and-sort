@@ -51,6 +51,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     # 설정 페이지(exe)를 켜 둔 동안 일정 간격으로 자동 정리
     "auto_run": {"enabled": False, "interval_minutes": 60},
+    # (선택) 규칙으로 판단하지 못한 메일만 LLM 에 물어보기. OpenAI 호환 API, 이용자 본인 키 사용.
+    "llm": {
+        "enabled": False,
+        "base_url": "",
+        "model": "",
+        "min_confidence": 0.7,
+        "api_key_path": "llm_api_key.txt",
+    },
     # 비어 있으면 templates.DEFAULT_TEMPLATES 사용
     "templates": {},
     # 분류 규칙 키워드 오버라이드 (비어 있으면 classifier.DEFAULT_RULES 사용)

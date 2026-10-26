@@ -38,8 +38,33 @@ from .gmail_client import (
     save_private_file,
     validate_client_secrets,
 )
+from .llm import (
+    LLMClassifier,
+    LLMError,
+    LLMSettings,
+    key_path,
+    load_classifier,
+    read_api_key,
+    validate_base_url,
+)
+from .message import Email
 from .runner import format_report, run
 from .templates import DEFAULT_TEMPLATES, TEMPLATE_LABELS
+
+# AI 연결 테스트에 쓰는 예시 메일 (키워드 규칙으로는 놓치는 '무가 협찬' 표현)
+LLM_TEST_EMAIL = Email(
+    id="test",
+    thread_id="test",
+    subject="신제품 소개드립니다",
+    sender="담당자 <test@example.com>",
+    sender_name="담당자",
+    sender_email="test@example.com",
+    body=(
+        "안녕하세요, 저희 브랜드에서 이번에 출시한 립 제품을 보내드리고 싶어 연락드립니다.\n"
+        "제품 수령 후 7일 이내 피드 또는 릴스 콘텐츠 1건을 업로드해 주시면 됩니다.\n"
+        "배송받으실 주소를 회신해 주세요."
+    ),
+)
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +179,7 @@ class SetupState:
             "default_templates": DEFAULT_TEMPLATES,
             "template_labels": TEMPLATE_LABELS,
             "auto": {**self.auto_settings(), "next_at": self._next_auto_at, "choices": list(AUTO_INTERVAL_CHOICES)},
+            "llm": self.llm_status(config),
             "last_run": self.last_run,
         }
 
@@ -283,6 +309,63 @@ class SetupState:
         self._run_seq += 1
         self.last_run = {"seq": self._run_seq, "finished_at": time.time(), **result}
 
+    # ---- AI 판단 (선택): 규칙으로 판단하지 못한 메일만 LLM 에 묻는다
+
+    def llm_status(self, config: dict[str, Any] | None = None) -> dict[str, Any]:
+        config = config or self.merged_config()
+        cfg = config.get("llm") or {}
+        return {
+            "enabled": bool(cfg.get("enabled")),
+            "base_url": cfg.get("base_url") or "",
+            "model": cfg.get("model") or "",
+            "has_key": bool(read_api_key(config, self.config_path)),  # 키 자체는 절대 내보내지 않음
+        }
+
+    def save_llm(self, payload: dict[str, Any]) -> None:
+        enabled = bool(payload.get("enabled"))
+        base_url = str(payload.get("base_url") or "").strip()
+        model = str(payload.get("model") or "").strip()
+        new_key = str(payload.get("api_key") or "").strip()
+        if base_url:
+            base_url = validate_base_url(base_url)
+        if len(model) > 200 or any(ch in model for ch in "\r\n"):
+            raise ValueError("모델 이름을 확인해 주세요.")
+        if any(ch in new_key for ch in "\r\n "):
+            raise ValueError("API 키에 공백이나 줄바꿈이 들어 있습니다.")
+
+        raw = self._raw_config() or copy.deepcopy(DEFAULT_CONFIG)
+        llm_cfg = {**copy.deepcopy(DEFAULT_CONFIG["llm"]), **(raw.get("llm") or {})}
+        llm_cfg.update({"enabled": enabled, "base_url": base_url, "model": model})
+        merged = _deep_merge(DEFAULT_CONFIG, {**raw, "llm": llm_cfg})
+        if new_key:
+            save_private_file(key_path(merged, self.config_path), new_key)
+        if enabled and not (base_url and model and read_api_key(merged, self.config_path)):
+            raise ValueError("AI 판단을 켜려면 API 주소, 모델 이름, API 키가 모두 필요합니다.")
+        raw["llm"] = llm_cfg
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        save_private_file(self.config_path, dump_config(raw))
+
+    def test_llm(self) -> str:
+        """저장된 설정으로 예시 메일 1건을 판단해 본다 (실제 Gmail 은 건드리지 않음)."""
+        config = self.merged_config()
+        cfg = config.get("llm") or {}
+        api_key = read_api_key(config, self.config_path)
+        if not (cfg.get("base_url") and cfg.get("model") and api_key):
+            raise ValueError("API 주소, 모델 이름, API 키를 먼저 저장해 주세요.")
+        classifier = LLMClassifier(
+            LLMSettings(base_url=cfg["base_url"], model=cfg["model"], api_key=api_key, timeout_seconds=20),
+            max_retries=0,
+        )
+        try:
+            verdict = classifier.classify(LLM_TEST_EMAIL)
+        except LLMError as exc:
+            raise ValueError(str(exc)) from exc
+        scenario = verdict.scenario.display if verdict.scenario else "직접 검토"
+        return (
+            f"연결 성공! 예시 메일(무가 협찬 문구) 판단 결과: {verdict.category.display} · {scenario} "
+            f"(확신도 {verdict.confidence:.2f}) — {verdict.reason}"
+        )
+
     # ---- 자동 정리 (설정 페이지/exe 를 켜 둔 동안만 동작)
 
     def auto_settings(self) -> dict[str, Any]:
@@ -352,7 +435,8 @@ class SetupState:
         except AuthError as exc:
             raise ValueError(str(exc)) from exc
         with self.lock_run:
-            return run(GmailClient(build_service(creds)), config, dry_run=dry_run)
+            ai = load_classifier(config, self.config_path)
+            return run(GmailClient(build_service(creds)), config, dry_run=dry_run, ai=ai)
 
 
 def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str]):
@@ -470,6 +554,11 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                 if path == "/api/auto":
                     state.save_auto(payload)
                     return self._json(HTTPStatus.OK, {"ok": True})
+                if path == "/api/llm":
+                    state.save_llm(payload)
+                    return self._json(HTTPStatus.OK, {"ok": True})
+                if path == "/api/llm/test":
+                    return self._json(HTTPStatus.OK, {"ok": True, "output": state.test_llm()})
                 if path == "/api/shutdown":
                     self._json(HTTPStatus.OK, {"ok": True})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()

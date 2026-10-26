@@ -12,7 +12,17 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from .classifier import Category, Scenario, categorize, check_candidate, detect_scenario, get_rules
+from .classifier import (
+    Category,
+    Scenario,
+    analysis_text,
+    categorize,
+    check_candidate,
+    detect_bulk_mail,
+    detect_scenario,
+    find_keywords,
+    get_rules,
+)
 from .message import Email, parse_message
 from .templates import render_reply, reply_subject
 
@@ -29,6 +39,7 @@ class MailResult:
     matched_keywords: list[str]
     reasons: list[str]
     draft_body: str | None = None
+    decided_by: str = "rule"  # "rule" | "ai"
 
     @property
     def needs_review(self) -> bool:
@@ -44,6 +55,8 @@ class RunReport:
     excluded_bulk: list[tuple[str, str, str]] = field(default_factory=list)  # (발신자, 제목, 사유)
     skipped_already_processed: int = 0
     errors: list[tuple[str, str]] = field(default_factory=list)  # (thread_id, 메시지)
+    ai_calls: int = 0
+    ai_errors: list[str] = field(default_factory=list)
 
     def counts(self) -> dict[Category, int]:
         counter = Counter(r.category for r in self.results)
@@ -74,6 +87,28 @@ def _latest_incoming(messages: list[Email], my_addresses: set[str]) -> Email | N
     return max(incoming, key=lambda m: m.internal_date_ms) if incoming else None
 
 
+def _collab_hints(mail: Email, rules: dict[str, list[str]]) -> list[str]:
+    """협업 키워드는 없지만 협업일 수 있는 신호 (예: '제품 수령 후 릴스 업로드').
+
+    이런 메일만 AI 에 물어보고, 신호가 전혀 없는 일반 메일은 외부로 보내지 않는다.
+    """
+    keys = ("content_obligation", "gift", "unpaid", "brand_sponsorship", "paid_ad", "price_inquiry")
+    return find_keywords(analysis_text(mail), [kw for key in keys for kw in rules[key]])
+
+
+def _ask_ai(ai, mail: Email, report: RunReport):
+    """AI 판단 1회. 실패하면 None (규칙 결과를 그대로 쓴다)."""
+    from .llm import LLMError
+
+    report.ai_calls += 1
+    try:
+        return ai.classify(mail)
+    except LLMError as exc:
+        report.ai_errors.append(f"{mail.subject}: {exc}")
+        log.debug("AI 판단 실패", exc_info=True)
+        return None
+
+
 def run(
     client,
     config: dict[str, Any],
@@ -81,7 +116,9 @@ def run(
     since_hours: float | None = None,
     dry_run: bool = False,
     now: float | None = None,
+    ai=None,
 ) -> RunReport:
+    """ai: (선택) llm.LLMClassifier. 규칙으로 A/B/C 를 정하지 못한 메일에만 쓰인다."""
     hours = float(since_hours or config["lookback_hours"])
     report = RunReport(dry_run=dry_run, since_hours=hours)
     after_epoch = int((now if now is not None else time.time()) - hours * 3600)
@@ -121,20 +158,52 @@ def run(
             if candidate.excluded_reason:
                 report.excluded_bulk.append((mail.sender, mail.subject, candidate.excluded_reason))
                 continue
-            if not candidate.is_candidate:
-                continue
 
-            category = categorize(mail, rules)
-            scenario_result = detect_scenario(mail, rules)
-            result = MailResult(
-                thread_id=thread_id,
-                sender=mail.sender,
-                subject=mail.subject,
-                category=category,
-                scenario=scenario_result.scenario,
-                matched_keywords=candidate.matched_keywords,
-                reasons=scenario_result.reasons,
-            )
+            if candidate.is_candidate:
+                # 1) 규칙으로 분류
+                category = categorize(mail, rules)
+                scenario_result = detect_scenario(mail, rules)
+                result = MailResult(
+                    thread_id=thread_id,
+                    sender=mail.sender,
+                    subject=mail.subject,
+                    category=category,
+                    scenario=scenario_result.scenario,
+                    matched_keywords=candidate.matched_keywords,
+                    reasons=scenario_result.reasons,
+                )
+                # 2) 규칙으로 A/B/C 를 못 정한 협업 메일만 AI 에게 묻는다
+                if result.scenario is None and ai is not None:
+                    verdict = _ask_ai(ai, mail, report)
+                    if verdict and verdict.is_collab and verdict.scenario and verdict.confidence >= ai.min_confidence:
+                        result.category, result.scenario, result.decided_by = verdict.category, verdict.scenario, "ai"
+                        result.reasons = [f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"]
+                    elif verdict:
+                        result.reasons.append(f"AI도 확신하지 못함 (확신도 {verdict.confidence:.2f}): {verdict.reason}")
+            else:
+                # 3) 협업 키워드는 없지만 협업일 수 있는 신호가 있는 메일만 AI 에게 묻는다
+                if ai is None:
+                    continue
+                if config["keywords"].get("exclude_bulk_mail_heuristics", True) and detect_bulk_mail(mail, my_addresses):
+                    continue  # 뉴스레터·광고 메일은 AI 에 보내지 않는다
+                hints = _collab_hints(mail, rules)
+                if not hints:
+                    continue
+                verdict = _ask_ai(ai, mail, report)
+                if not (verdict and verdict.is_collab and verdict.confidence >= ai.min_confidence):
+                    continue
+                result = MailResult(
+                    thread_id=thread_id,
+                    sender=mail.sender,
+                    subject=mail.subject,
+                    category=verdict.category,
+                    scenario=verdict.scenario,
+                    matched_keywords=hints,
+                    reasons=[f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"],
+                    decided_by="ai",
+                )
+
+            category = result.category
             if result.scenario is not None:
                 result.draft_body = render_reply(config, result.scenario, mail)
 
@@ -193,6 +262,9 @@ def format_report(report: RunReport, *, show_drafts: bool = False, summary_only:
         f"  (대량발송 제외 {len(report.excluded_bulk)}건, "
         f"이미 처리되어 건너뜀 {report.skipped_already_processed}건, 오류 {len(report.errors)}건)"
     )
+    if report.ai_calls:
+        ai_decided = sum(1 for r in report.results if r.decided_by == "ai")
+        lines.append(f"  (AI 판단 요청 {report.ai_calls}건 → AI가 결정 {ai_decided}건, AI 오류 {len(report.ai_errors)}건)")
     verb = "작성 예정" if report.dry_run else "작성 완료"
 
     if summary_only:
@@ -202,7 +274,10 @@ def format_report(report: RunReport, *, show_drafts: bool = False, summary_only:
 
     lines += ["", f"[답장 초안 {verb}] {len(report.drafted)}건"]
     for r in report.drafted:
-        lines.append(f"  - [{r.scenario.display}] [{r.category.display}] {r.sender} | {r.subject}")
+        tag = " [AI]" if r.decided_by == "ai" else ""
+        lines.append(f"  - [{r.scenario.display}] [{r.category.display}]{tag} {r.sender} | {r.subject}")
+        if r.decided_by == "ai" and r.reasons:
+            lines.append(f"      {r.reasons[0]}")
         if show_drafts and r.draft_body:
             lines += ["    ┌─ 초안 미리보기", *[f"    │ {ln}" for ln in r.draft_body.splitlines()], "    └─"]
 
@@ -220,6 +295,9 @@ def format_report(report: RunReport, *, show_drafts: bool = False, summary_only:
         lines += ["", f"[오류] {len(report.errors)}건"]
         for thread_id, message in report.errors:
             lines.append(f"  - thread {thread_id}: {message}")
+    if report.ai_errors:
+        lines += ["", f"[AI 판단 실패 → 규칙 결과로 처리] {len(report.ai_errors)}건"]
+        lines += [f"  - {message}" for message in report.ai_errors]
 
     lines += ["", "※ 메일은 발송되지 않았습니다. Gmail 임시보관함에서 초안을 확인 후 직접 보내세요.", bar]
     return "\n".join(lines)
