@@ -182,7 +182,7 @@
     <h1><img src="/icon.png" alt=""><span>sip-and-sort<small>딸기우유 한 모금 마시는 사이에, 협업 메일 정리 끝!</small></span></h1>
     <p class="lead">본인의 Google 계정과 이름(활동명)을 연결하면, 협업 제안 메일을 분류하고 답장 <b>초안</b>을 만들어 둡니다.</p>
   </header>
-  <div class="notice">이 페이지는 내 PC(127.0.0.1)에서만 열립니다. 입력한 값은 이 PC의 파일에만 저장되며, 이 프로그램은 메일을 <b>절대 자동 발송하지 않습니다</b>.</div>
+  <div class="notice">이 화면은 내 PC 안에서만 동작합니다. 입력한 값은 이 PC의 파일에만 저장되며, 이 프로그램은 메일을 <b>절대 자동 발송하지 않습니다</b>.</div>
 
   <div class="viewbar" id="settingsBar" hidden>
     <button type="button" id="toHome" class="secondary">← 메일 정리 화면으로</button>
@@ -307,7 +307,7 @@
       </span>
       <span class="hint" id="autoNext"></span>
     </div>
-    <p class="hint auto-note">자동 정리는 sip-and-sort(검은 창)를 켜 둔 동안에만 동작해요.</p>
+    <p class="hint auto-note">자동 정리는 sip-and-sort를 켜 둔 동안에만 동작해요. (창을 닫으면 종료돼요)</p>
     <div class="msg" id="m4"></div>
     <pre id="out" hidden></pre>
   </section>
@@ -409,6 +409,19 @@
     } catch (err) { msg("m4", err.message, "err"); refresh().catch(() => {}); }
   }
 
+  // 프로그램 창(pywebview) 안에서는 Google 로그인·외부 링크를 평소 브라우저로 연다.
+  // (Google 은 프로그램 안에 넣은 창에서의 로그인을 막는다) 브라우저로 열린 경우엔 새 탭.
+  function openExternal(url) {
+    const bridge = window.pywebview && window.pywebview.api;
+    if (bridge && bridge.open_external) { bridge.open_external(url); return; }
+    window.open(url, "_blank", "noopener");
+  }
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest && e.target.closest('a[target="_blank"]');
+    if (!link || !link.href || link.href.endsWith("#")) return;
+    if (window.pywebview && window.pywebview.api) { e.preventDefault(); openExternal(link.href); }
+  });
+
   async function api(path, body) {
     const opts = { headers: { "X-Setup-Token": TOKEN } };
     if (body !== undefined) {
@@ -480,7 +493,7 @@
       $("loginLink").href = o.auth_url;
       if (lastAuthUrl !== o.auth_url) {  // 처음 받은 주소는 새 탭으로 열어 본다 (팝업 차단 시 버튼 사용)
         lastAuthUrl = o.auth_url;
-        window.open(o.auth_url, "_blank", "noopener");
+        openExternal(o.auth_url);
       }
     }
     $("connect").textContent = o.state === "running" ? "로그인 대기 중..." : "Gmail 연결하기";
@@ -569,7 +582,7 @@
   $("runNow").onclick = () => runMail("/api/run", "완료! Gmail 임시보관함에서 초안을 확인한 뒤 직접 보내세요.");
   $("shutdown").onclick = async () => {
     try { await api("/api/shutdown", {}); } catch (_) {}
-    document.querySelector("main").innerHTML = "<h1>종료했습니다</h1><p class='lead'>이 탭을 닫으셔도 됩니다. 다음에 다시 프로그램을 실행하면 저장된 설정으로 바로 이어집니다.</p>";
+    document.querySelector("main").innerHTML = "<h1>종료했습니다</h1><p class='lead'>창(또는 탭)을 닫으셔도 됩니다. 다음에 다시 프로그램을 실행하면 저장된 설정으로 바로 이어집니다.</p>";
   };
 
   refresh(true).catch((err) => msg("m1", "상태를 불러오지 못했습니다: " + err.message, "err"));

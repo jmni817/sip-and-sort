@@ -25,6 +25,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+desktop = ["pywebview>=5.0"]  # 브라우저 대신 프로그램 창으로 열기 (없으면 브라우저로 열림)
 
 [project.scripts]
 sip-and-sort = "sip_and_sort.main:main"
