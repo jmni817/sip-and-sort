@@ -38,6 +38,7 @@ exe = EXE(
     a.datas,
     name="sip-and-sort",
     icon=str(root / "assets" / ("icon.ico" if sys.platform == "win32" else "icon.png")),
-    console=True,  # 설정 페이지 주소와 상태를 보여주는 창. 이 창을 닫으면 프로그램이 종료된다.
+    # 검은 콘솔 창 없이 프로그램 창(pywebview)만 뜬다. 출력은 %APPDATA%\sip-and-sort\sip-and-sort.log 로 기록.
+    console=False,
     upx=False,
 )

@@ -63,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup = sub.add_parser("setup", parents=[common], help="로컬 설정 랜딩 페이지 열기 (최초 1회)")
     setup.add_argument("--port", type=int, default=8765, help="설정 페이지 포트 (0 = 자동)")
     setup.add_argument("--no-browser", action="store_true", help="브라우저 자동 실행 안 함")
+    setup.add_argument("--window", action="store_true", help="브라우저 대신 프로그램 창으로 열기 (exe 더블클릭 시 기본)")
 
     auth = sub.add_parser("auth", parents=[common], help="터미널에서 Gmail OAuth 로그인만 수행")
     auth.add_argument("--no-browser", action="store_true", help="로그인 URL만 출력 (원격 서버용)")
@@ -102,7 +103,7 @@ def _cmd_setup(args) -> int:
 
     if args.credentials or args.token:
         print("참고: setup 에서는 config.yaml 의 credentials_path / token_path 값을 사용합니다.")
-    serve(args.config, port=args.port, open_browser=not args.no_browser)
+    serve(args.config, port=args.port, open_browser=not args.no_browser, window=args.window)
     return EXIT_OK
 
 
@@ -152,16 +153,47 @@ def _cmd_run(args) -> int:
     return EXIT_PARTIAL if report.errors else EXIT_OK
 
 
+def _ensure_output_streams() -> None:
+    """창 모드 exe(콘솔 없음)는 stdout/stderr 가 None 이라, 로그 파일로 돌려 기록을 남긴다."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        log_dir = app_data_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stream = open(log_dir / "sip-and-sort.log", "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+    except OSError:
+        stream = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stdout is None:
+        sys.stdout = stream
+    if sys.stderr is None:
+        sys.stderr = stream
+
+
+def _show_error(message: str) -> None:
+    """더블클릭 실행 중 오류: 콘솔이 있으면 Enter 대기, 없으면 Windows 메시지 창으로 알린다."""
+    if sys.stdin is not None and sys.stdin.isatty():
+        input("Enter 키를 누르면 종료합니다...")
+        return
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, "sip-and-sort", 0x10)  # MB_ICONERROR
+        except Exception:
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _ensure_output_streams()
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")  # Windows 콘솔에서 한글/특수문자 출력 오류 방지
         except (AttributeError, ValueError):
             pass
     raw_args = sys.argv[1:] if argv is None else argv
-    # 인자 없이 실행(= exe 더블클릭) 하면 설정/실행 페이지를 연다
+    # 인자 없이 실행(= exe 더블클릭) 하면 설정/실행 페이지를 프로그램 창으로 연다
     double_clicked = not raw_args
-    args = build_parser().parse_args(raw_args or ["setup"])
+    args = build_parser().parse_args(raw_args or ["setup", "--window"])
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
@@ -173,8 +205,8 @@ def main(argv: list[str] | None = None) -> int:
         return handlers[args.command](args)
     except (ConfigError, AuthError, GmailApiError, OSError) as exc:
         print(f"오류: {exc}", file=sys.stderr)
-        if FROZEN and double_clicked:  # 더블클릭 실행 시 창이 바로 닫혀 오류를 못 보는 것 방지
-            input("Enter 키를 누르면 종료합니다...")
+        if FROZEN and double_clicked:  # 더블클릭 실행 시 오류를 못 보고 꺼지는 것 방지
+            _show_error(f"오류: {exc}")
         return EXIT_FATAL
     except KeyboardInterrupt:
         return EXIT_FATAL

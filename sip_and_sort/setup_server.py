@@ -15,6 +15,7 @@ import copy
 import hmac
 import json
 import logging
+import os
 import secrets
 import threading
 import time
@@ -137,6 +138,7 @@ class SetupState:
         self.last_run: dict[str, Any] | None = None
         self._run_seq = 0
         self._next_auto_at: float | None = None
+        self.on_shutdown = None  # 프로그램 창 모드에서 [종료] 시 창을 닫는 함수
         self._browser_name = f"sip-and-sort-login-{id(self)}"
         webbrowser.register(self._browser_name, None, _LinkCaptureBrowser(self._set_auth_url))
 
@@ -562,6 +564,8 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                 if path == "/api/shutdown":
                     self._json(HTTPStatus.OK, {"ok": True})
                     threading.Thread(target=self.server.shutdown, daemon=True).start()
+                    if state.on_shutdown is not None:  # 프로그램 창 모드면 창도 닫는다
+                        threading.Timer(0.3, state.on_shutdown).start()
                     return None
             except (ValueError, json.JSONDecodeError) as exc:
                 return self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
@@ -573,7 +577,74 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
     return Handler
 
 
-def serve(config_path: str | Path, *, port: int = 8765, open_browser: bool = True) -> None:
+APP_TITLE = "sip-and-sort"
+
+
+class WindowUnavailable(Exception):
+    """프로그램 창(pywebview/WebView2)을 띄울 수 없음 → 브라우저로 대신 연다."""
+
+
+def open_in_system_browser(url: str) -> bool:
+    """평소 쓰는 브라우저로 주소를 연다. 백그라운드 스레드에서도 동작하도록 Windows 에서는 COM 을 먼저 초기화한다."""
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            ctypes.windll.ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED (이미 초기화돼 있어도 무해)
+            os.startfile(url)  # type: ignore[attr-defined]
+            return True
+        except OSError:
+            log.debug("os.startfile 실패, webbrowser 로 재시도", exc_info=True)
+    return webbrowser.open(url)
+
+
+class DesktopBridge:
+    """프로그램 창 안의 페이지(JS)에서 부를 수 있는 기능 (pywebview js_api)."""
+
+    def __init__(self) -> None:
+        self._window = None  # 밑줄로 시작하는 속성은 페이지에 노출되지 않는다
+
+    def open_external(self, url: str) -> bool:
+        # Google 로그인 등은 프로그램 창 안이 아니라 평소 브라우저에서 열어야 한다 (Google 정책)
+        if not isinstance(url, str) or not url.startswith("https://"):
+            return False
+        return open_in_system_browser(url)
+
+    def close(self) -> None:
+        if self._window is not None:
+            self._window.destroy()
+
+
+def _run_window(state: SetupState, url: str) -> None:
+    """설정 페이지를 독립된 프로그램 창으로 띄우고, 창이 닫힐 때까지 기다린다."""
+    try:
+        import webview
+    except ImportError as exc:
+        raise WindowUnavailable("pywebview 가 설치되어 있지 않습니다") from exc
+
+    bridge = DesktopBridge()
+    window = webview.create_window(
+        APP_TITLE,
+        url,
+        js_api=bridge,
+        width=880,
+        height=820,
+        min_size=(420, 560),
+        text_select=True,  # 정리 결과를 복사할 수 있게
+        background_color="#FFF0F3",
+    )
+    bridge._window = window
+    state.on_shutdown = bridge.close  # 페이지의 [종료] 버튼도 창을 닫는다
+    try:
+        webview.start(gui="edgechromium" if os.name == "nt" else None, private_mode=True)
+    except Exception as exc:  # WebView2 런타임이 없는 PC 등
+        raise WindowUnavailable(str(exc)) from exc
+
+
+def serve(
+    config_path: str | Path, *, port: int = 8765, open_browser: bool = True, window: bool = False
+) -> None:
+    """window=True 면 프로그램 창으로, 아니면 브라우저로 설정 페이지를 연다. 창을 닫으면 종료."""
     state = SetupState(Path(config_path))
     access_token = secrets.token_urlsafe(24)
     try:
@@ -589,15 +660,26 @@ def serve(config_path: str | Path, *, port: int = 8765, open_browser: bool = Tru
     print(f"  {url}", flush=True)
     print(f"  설정 파일 위치: {state.config_path.parent}", flush=True)
     print("  다 쓰셨으면 페이지의 [종료] 버튼을 누르거나 이 창을 닫으세요.", flush=True)
-    if open_browser:
-        webbrowser.open(url)
     stop_auto = threading.Event()
     threading.Thread(target=state.auto_loop, args=(stop_auto,), daemon=True).start()
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
     try:
-        server.serve_forever()
+        if window:
+            try:
+                _run_window(state, url)
+                return  # 창을 닫으면 바로 종료
+            except WindowUnavailable as exc:
+                print(f"프로그램 창을 열 수 없어 브라우저로 엽니다: {exc}", flush=True)
+                open_browser = True
+        if open_browser:
+            webbrowser.open(url)
+        while server_thread.is_alive():  # [종료] 버튼 또는 Ctrl+C 까지 대기
+            server_thread.join(0.5)
     except KeyboardInterrupt:
         pass
     finally:
         stop_auto.set()
+        server.shutdown()
         server.server_close()
-        print("설정 페이지를 종료했습니다.")
+        print("설정 페이지를 종료했습니다.", flush=True)
