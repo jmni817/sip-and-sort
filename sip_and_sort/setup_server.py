@@ -578,6 +578,7 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
 
 
 APP_TITLE = "sip-and-sort"
+WINDOW_LOAD_TIMEOUT_SECONDS = 20  # 이 시간 안에 화면이 안 뜨면 브라우저로 넘어간다
 
 
 class WindowUnavailable(Exception):
@@ -615,6 +616,40 @@ class DesktopBridge:
             self._window.destroy()
 
 
+class _WindowFailureWatcher(logging.Handler):
+    """pywebview 로그에서 WebView2 시작 실패를 알아챈다."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.ERROR)
+        self.message: str | None = None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        text = record.getMessage()
+        if "initialization failed" in text:
+            self.message = text
+
+
+def _notify_window_fallback(reason: str) -> None:
+    """콘솔이 없으므로 왜 브라우저로 열렸는지 알림 창으로 알려 준다 (대기 루프를 막지 않게 별도 스레드)."""
+    if "0x80070070" in reason:
+        detail = (
+            "디스크 여유 공간이 부족해 프로그램 창을 열지 못했습니다.\n"
+            "C 드라이브 공간을 확보하면 다음 실행부터 프로그램 창으로 열립니다."
+        )
+    else:
+        detail = "프로그램 창을 열지 못했습니다."
+    message = f"{detail}\n\n기능은 그대로이며, 이번에는 브라우저로 엽니다."
+    print(f"프로그램 창을 열 수 없어 브라우저로 엽니다: {reason}", flush=True)
+    if os.name == "nt":
+
+        def show() -> None:
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, APP_TITLE, 0x30)  # MB_ICONWARNING
+
+        threading.Thread(target=show, daemon=True).start()
+
+
 def _run_window(state: SetupState, url: str) -> None:
     """설정 페이지를 독립된 프로그램 창으로 띄우고, 창이 닫힐 때까지 기다린다."""
     try:
@@ -635,10 +670,32 @@ def _run_window(state: SetupState, url: str) -> None:
     )
     bridge._window = window
     state.on_shutdown = bridge.close  # 페이지의 [종료] 버튼도 창을 닫는다
+
+    # WebView2 시작 실패는 pywebview 가 로그만 남기고 삼켜서 빈 창이 그대로 남는다.
+    # 로그와 페이지 로딩 여부를 지켜보다가, 실패하면 창을 닫고 브라우저로 넘어간다.
+    failure = _WindowFailureWatcher()
+    pywebview_log = logging.getLogger("pywebview")
+    pywebview_log.addHandler(failure)
+    timed_out = threading.Event()
+
+    def watch_load() -> None:
+        deadline = time.monotonic() + WINDOW_LOAD_TIMEOUT_SECONDS
+        while time.monotonic() < deadline and failure.message is None:
+            if window.events.loaded.wait(0.25):
+                return
+        timed_out.set()
+        window.destroy()
+
     try:
-        webview.start(gui="edgechromium" if os.name == "nt" else None, private_mode=True)
+        webview.start(watch_load, gui="edgechromium" if os.name == "nt" else None, private_mode=True)
     except Exception as exc:  # WebView2 런타임이 없는 PC 등
+        state.on_shutdown = None
         raise WindowUnavailable(str(exc)) from exc
+    finally:
+        pywebview_log.removeHandler(failure)
+    if timed_out.is_set():
+        state.on_shutdown = None
+        raise WindowUnavailable(failure.message or "화면을 불러오지 못했습니다")
 
 
 def serve(
@@ -670,7 +727,7 @@ def serve(
                 _run_window(state, url)
                 return  # 창을 닫으면 바로 종료
             except WindowUnavailable as exc:
-                print(f"프로그램 창을 열 수 없어 브라우저로 엽니다: {exc}", flush=True)
+                _notify_window_fallback(str(exc))
                 open_browser = True
         if open_browser:
             webbrowser.open(url)
