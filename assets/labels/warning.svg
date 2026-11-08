@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="36" viewBox="0 0 108 36" role="img" aria-label="주의">
+  <title>주의</title>
+  <rect width="108" height="36" rx="18" fill="#EC5564"/>
+  <path transform="translate(22 10)" fill="#FFFFFF" d="M8 15.2 1.6 8.9A4.2 4.2 0 0 1 8 3.4a4.2 4.2 0 0 1 6.4 5.5Z"/>
+  <text x="48" y="24" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR','Noto Sans CJK KR',sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">주의</text>
+</svg>

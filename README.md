@@ -18,13 +18,13 @@
 
 ---
 
-> <img src="https://img.shields.io/badge/%EC%A4%91%EC%9A%94-EC5564?style=for-the-badge" alt="중요" height="22">
+> <img src="assets/labels/important.svg" alt="중요" height="36">
 >
 > **메일을 절대 자동으로 보내지 않습니다.**
 > 라벨을 붙이고, Gmail 임시보관함에 답장 **초안**만 저장합니다.
 > 최종 확인과 발송은 사용자가 직접 합니다.
 
-> <img src="https://img.shields.io/badge/%EC%B0%B8%EA%B3%A0-D36279?style=for-the-badge" alt="참고" height="22">
+> <img src="assets/labels/note.svg" alt="참고" height="36">
 >
 > **이 저장소와 exe에는 어떤 API 키·토큰도 들어 있지 않습니다.**
 > 각자 본인의 Google 키(`credentials.json`)를 등록해서 본인 Gmail에 연결합니다.
@@ -141,7 +141,7 @@
 3. **[연결 테스트]** 로 위 무가 협찬 예시를 AI가 어떻게 판단하는지 확인
 4. **AI 판단 사용하기** 를 켜면 다음 정리부터 적용
 
-> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+> <img src="assets/labels/warning.svg" alt="주의" height="36">
 >
 > AI 판단을 켜면 위 표의 ⭕ 메일 내용이 **입력한 AI 서비스로 전송됩니다.**
 > 그 서비스의 데이터 보관·학습 정책을 꼭 확인하세요. (기본값은 꺼짐)
@@ -205,7 +205,7 @@ Python이나 명령어 없이 바로 쓸 수 있습니다.
 sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 본인 Gmail에 접속합니다.
 무료이고, 결제 정보는 필요 없습니다.
 
-> <img src="https://img.shields.io/badge/%ED%8C%81-F8C8D5?style=for-the-badge" alt="팁" height="22">
+> <img src="assets/labels/tip.svg" alt="팁" height="36">
 >
 > Google Cloud 콘솔은 자주 개편되어 메뉴 이름이 조금 다를 수 있습니다.
 > 최신 화면은 왼쪽 메뉴 **Google 인증 플랫폼**(브랜딩 · 대상 · 클라이언트),
@@ -235,7 +235,7 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 | 대상 | **외부(External)** |
 | 연락처 정보 | 본인 이메일 |
 
-> <img src="https://img.shields.io/badge/%EA%BC%AD%20%ED%99%95%EC%9D%B8-D36279?style=for-the-badge" alt="꼭 확인" height="22">
+> <img src="assets/labels/caution.svg" alt="꼭 확인" height="36">
 >
 > **앱 로고는 올리지 마세요.**
 > 로고가 있으면 Google 인증 심사를 받아야 앱을 게시할 수 있고, Gmail 권한을 쓰는 앱의 심사는 개인이 통과하기 어렵습니다.
@@ -257,7 +257,7 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 3. 이름 입력 → **[만들기]**
 4. 완료 창에서 **[JSON 다운로드]**
 
-> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+> <img src="assets/labels/warning.svg" alt="주의" height="36">
 >
 > 콘솔 버전에 따라 **보안 비밀번호는 이 창에서만** 받을 수 있습니다. 창을 닫기 전에 꼭 받으세요.
 > 이 파일은 **비밀번호처럼** 다루고, 다른 사람에게 보내거나 GitHub에 올리지 마세요.
@@ -422,7 +422,7 @@ Register-ScheduledTask -TaskName "sip-and-sort" -Action $action -Trigger $trigge
 3. [`run.yml`](.github/workflows/run.yml)이 **매시간 정각**에 최근 3시간 메일을 정리합니다.
    Actions 탭에서 수동 실행도 됩니다. (수동 실행은 기본값이 미리 보기)
 
-> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+> <img src="assets/labels/warning.svg" alt="주의" height="36">
 >
 > **공개 저장소의 Actions 로그는 누구나 볼 수 있습니다.**
 > 그래서 기본 워크플로는 건수만 출력합니다. 가능하면 비공개 저장소에서 운영하세요.
