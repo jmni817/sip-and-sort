@@ -13,23 +13,25 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><b>⬇️ Windows용 exe 다운로드</b></a>
+  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><b>🍓 Windows용 exe 다운로드</b></a>
 </p>
 
 ---
 
-> [!IMPORTANT]
+> <img src="https://img.shields.io/badge/%EC%A4%91%EC%9A%94-EC5564?style=for-the-badge" alt="중요" height="22">
+>
 > **메일을 절대 자동으로 보내지 않습니다.**
 > 라벨을 붙이고, Gmail 임시보관함에 답장 **초안**만 저장합니다.
 > 최종 확인과 발송은 사용자가 직접 합니다.
 
-> [!NOTE]
+> <img src="https://img.shields.io/badge/%EC%B0%B8%EA%B3%A0-D36279?style=for-the-badge" alt="참고" height="22">
+>
 > **이 저장소와 exe에는 어떤 API 키·토큰도 들어 있지 않습니다.**
 > 각자 본인의 Google 키(`credentials.json`)를 등록해서 본인 Gmail에 연결합니다.
 
 <br>
 
-## 📚 목차
+## 🎀 목차
 
 1. [무엇을 해주나요?](#-무엇을-해주나요)
 2. [AI로 키워드의 사각지대 없애기](#-ai로-키워드의-사각지대-없애기-선택-기능)
@@ -46,7 +48,7 @@
 
 ---
 
-## ✨ 무엇을 해주나요?
+## 🍓 무엇을 해주나요?
 
 크리에이터 메일함에 쌓이는 **협업·협찬·광고 제안 메일**을 찾아 정리하고, 답장 초안까지 만들어 둡니다.
 
@@ -86,7 +88,7 @@
 
 ---
 
-## 🤖 AI로 키워드의 사각지대 없애기 (선택 기능)
+## 💗 AI로 키워드의 사각지대 없애기 (선택 기능)
 
 ### 키워드만으로는 놓치는 메일이 있었습니다
 
@@ -106,9 +108,9 @@
 | 메일 | AI에게 보낼까? |
 |---|---|
 | 규칙으로 A·B·C가 정해진 메일 | ❌ 규칙 결과 사용 (API 비용 없음) |
-| 협업 메일인데 규칙이 A·B·C를 못 정한 메일 | ✅ |
-| 협업 키워드는 없지만 `업로드` `릴스` `제품 수령` 같은 신호가 있는 메일 | ✅ |
-| 대량발송처럼 보이지만 협업 신호가 있는 메일<br>(체험단·인플루언서 **모집**인지, 그냥 뉴스레터인지 구분) | ✅ |
+| 협업 메일인데 규칙이 A·B·C를 못 정한 메일 | ⭕ |
+| 협업 키워드는 없지만 `업로드` `릴스` `제품 수령` 같은 신호가 있는 메일 | ⭕ |
+| 대량발송처럼 보이지만 협업 신호가 있는 메일<br>(체험단·인플루언서 **모집**인지, 그냥 뉴스레터인지 구분) | ⭕ |
 | 신호가 전혀 없는 일반 메일 | ❌ 보내지 않음 |
 
 ### AI가 엉뚱하게 굴지 않도록
@@ -139,8 +141,9 @@
 3. **[연결 테스트]** 로 위 무가 협찬 예시를 AI가 어떻게 판단하는지 확인
 4. **AI 판단 사용하기** 를 켜면 다음 정리부터 적용
 
-> [!WARNING]
-> AI 판단을 켜면 위 표의 ✅ 메일 내용이 **입력한 AI 서비스로 전송됩니다.**
+> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+>
+> AI 판단을 켜면 위 표의 ⭕ 메일 내용이 **입력한 AI 서비스로 전송됩니다.**
 > 그 서비스의 데이터 보관·학습 정책을 꼭 확인하세요. (기본값은 꺼짐)
 
 - API 키는 `config.yaml`이 아니라 설정 폴더의 `llm_api_key.txt`에 따로 저장되고, 화면에 다시 표시되지 않습니다.
@@ -150,7 +153,7 @@
 
 ---
 
-## 💾 시작하기 (Windows exe)
+## 💌 시작하기 (Windows exe)
 
 Python이나 명령어 없이 바로 쓸 수 있습니다.
 
@@ -165,20 +168,20 @@ Python이나 명령어 없이 바로 쓸 수 있습니다.
 
 ### 알아두면 좋은 기능
 
-- **⏰ 자동 정리**
+- **🍒 자동 정리**
   [자동 정리] 스위치를 켜고 간격(30분 · 1시간 · 2시간 · 3시간)을 고르면, 프로그램을 켜 둔 동안 알아서 정리합니다.
   끝나면 "정리 완료! 답장 초안 N건" 알림이 잠깐 떴다 사라집니다.
 
-- **🔔 새 버전 안내** (v0.1.11부터)
+- **💌 새 버전 안내** (v0.1.11부터)
   켤 때 새 버전이 있으면 팝업으로 알려 줍니다.
   [다운로드하기] → 기존 exe 삭제 안내 → [확인]을 누르면 새 버전을 받아 바로 실행합니다.
   새 버전이 열리면 예전 exe 파일은 지워 주세요.
 
-- **🔐 Google 로그인은 평소 브라우저에서**
+- **🌷 Google 로그인은 평소 브라우저에서**
   Google이 프로그램 안 창에서의 로그인을 막기 때문에, [Gmail 연결하기]를 누르면 그때만 브라우저가 열립니다.
   로그인을 마치면 프로그램 창이 자동으로 '연결됨'으로 바뀝니다.
 
-- **💾 설정이 저장되는 곳**
+- **🧁 설정이 저장되는 곳**
   `%APPDATA%\sip-and-sort\` (키, 로그인 정보, 설정)
   exe를 어디로 옮기거나 새 버전으로 바꿔도 그대로 이어집니다. 이 폴더를 지우면 초기화됩니다.
 
@@ -197,12 +200,13 @@ Python이나 명령어 없이 바로 쓸 수 있습니다.
 
 ---
 
-## 🔧 Google Cloud 설정 (최초 1회)
+## 🌷 Google Cloud 설정 (최초 1회)
 
 sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 본인 Gmail에 접속합니다.
 무료이고, 결제 정보는 필요 없습니다.
 
-> [!TIP]
+> <img src="https://img.shields.io/badge/%ED%8C%81-F8C8D5?style=for-the-badge" alt="팁" height="22">
+>
 > Google Cloud 콘솔은 자주 개편되어 메뉴 이름이 조금 다를 수 있습니다.
 > 최신 화면은 왼쪽 메뉴 **Google 인증 플랫폼**(브랜딩 · 대상 · 클라이언트),
 > 예전 화면은 **API 및 서비스 → OAuth 동의 화면 / 사용자 인증 정보**를 보면 됩니다.
@@ -231,12 +235,13 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 | 대상 | **외부(External)** |
 | 연락처 정보 | 본인 이메일 |
 
-> [!CAUTION]
+> <img src="https://img.shields.io/badge/%EA%BC%AD%20%ED%99%95%EC%9D%B8-D36279?style=for-the-badge" alt="꼭 확인" height="22">
+>
 > **앱 로고는 올리지 마세요.**
 > 로고가 있으면 Google 인증 심사를 받아야 앱을 게시할 수 있고, Gmail 권한을 쓰는 앱의 심사는 개인이 통과하기 어렵습니다.
 > 홈페이지·개인정보처리방침·승인된 도메인도 비워 두면 됩니다.
 
-### STEP 4. 테스트 사용자에 내 Gmail 추가 ⭐ 꼭 필요
+### STEP 4. 테스트 사용자에 내 Gmail 추가 ❗ 꼭 필요
 
 새 앱은 **"테스트" 상태**라서 등록한 계정만 로그인할 수 있습니다.
 빠뜨리면 로그인할 때 **"액세스 차단됨 … 403 오류: access_denied"** 가 나옵니다.
@@ -252,7 +257,8 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 3. 이름 입력 → **[만들기]**
 4. 완료 창에서 **[JSON 다운로드]**
 
-> [!WARNING]
+> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+>
 > 콘솔 버전에 따라 **보안 비밀번호는 이 창에서만** 받을 수 있습니다. 창을 닫기 전에 꼭 받으세요.
 > 이 파일은 **비밀번호처럼** 다루고, 다른 사람에게 보내거나 GitHub에 올리지 마세요.
 
@@ -288,7 +294,7 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 
 ---
 
-## 🧩 설정 파일 (config.yaml)
+## 🧁 설정 파일 (config.yaml)
 
 대부분은 설정 화면에서 바꿀 수 있습니다.
 키워드나 라벨 이름처럼 더 세밀하게 바꾸고 싶을 때만 `config.yaml`을 직접 편집하세요.
@@ -317,7 +323,7 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 
 ---
 
-## 💻 개발자용: Python으로 실행하기
+## 🌸 개발자용: Python으로 실행하기
 
 Python **3.11 이상**이 필요합니다.
 
@@ -382,7 +388,7 @@ sip-and-sort auth --no-browser   # 원격 서버: 로그인 주소만 출력
 
 ---
 
-## ⏰ 자동 실행
+## 🍒 자동 실행
 
 프로그램을 켜 둔 동안 정리하려면 [자동 정리 스위치](#알아두면-좋은-기능)로 충분합니다.
 **프로그램을 꺼 둬도** 돌리고 싶을 때 아래 방법을 쓰세요.
@@ -416,7 +422,8 @@ Register-ScheduledTask -TaskName "sip-and-sort" -Action $action -Trigger $trigge
 3. [`run.yml`](.github/workflows/run.yml)이 **매시간 정각**에 최근 3시간 메일을 정리합니다.
    Actions 탭에서 수동 실행도 됩니다. (수동 실행은 기본값이 미리 보기)
 
-> [!WARNING]
+> <img src="https://img.shields.io/badge/%EC%A3%BC%EC%9D%98-EC5564?style=for-the-badge" alt="주의" height="22">
+>
 > **공개 저장소의 Actions 로그는 누구나 볼 수 있습니다.**
 > 그래서 기본 워크플로는 건수만 출력합니다. 가능하면 비공개 저장소에서 운영하세요.
 
@@ -424,7 +431,7 @@ Register-ScheduledTask -TaskName "sip-and-sort" -Action $action -Trigger $trigge
 
 ---
 
-## 🧠 분류 규칙과 한계
+## 📌 분류 규칙과 한계
 
 - 기본 판단은 [`classifier.py`](sip_and_sort/classifier.py)의 **키워드 규칙**으로 합니다.
   AI 판단을 켠 경우에만, 규칙이 판단하지 못한 메일이 AI에게 전송됩니다.
@@ -445,7 +452,7 @@ Register-ScheduledTask -TaskName "sip-and-sort" -Action $action -Trigger $trigge
 
 ---
 
-## 🔒 보안 · 개인정보
+## 🌹 보안 · 개인정보
 
 - **하는 일은 검색·읽기, 라벨 붙이기, 초안 저장뿐입니다.** 메일을 보내거나 지우지 않습니다.
 - **설정 화면은 내 PC 안에서만** 동작하고, 실행할 때마다 바뀌는 접속 토큰이 있어야 열립니다.
@@ -461,7 +468,7 @@ Register-ScheduledTask -TaskName "sip-and-sort" -Action $action -Trigger $trigge
 
 ---
 
-## 📁 프로젝트 구조
+## 🍰 프로젝트 구조
 
 ```text
 sip-and-sort/
@@ -495,7 +502,7 @@ pyinstaller --noconfirm packaging/sip-and-sort.spec   # → dist/sip-and-sort.ex
 `v`로 시작하는 태그를 올리면 GitHub가 exe를 빌드해서 Releases에 올리고,
 [`CHANGELOG.md`](CHANGELOG.md)의 해당 버전 내용을 릴리스 설명으로 넣습니다.
 
-### 🤝 기여하기
+### 💞 기여하기
 
 버그 제보와 기능 제안은 언제나 환영합니다! Issue나 Pull Request로 남겨 주세요.
 코드를 고친 뒤에는 `pytest`로 테스트가 통과하는지 확인해 주세요. (Google 계정 없이 실행됩니다)
@@ -505,7 +512,7 @@ pyinstaller --noconfirm packaging/sip-and-sort.spec   # → dist/sip-and-sort.ex
 
 ---
 
-## 🌏 English summary
+## 💕 English summary
 
 **sip-and-sort** finds collaboration / sponsorship / ad proposals in a creator's Gmail, labels them (*Brand sponsorship / Paid ad / Other*), and saves a reply **draft** only when the case is clear. **It never sends email.**
 
@@ -517,7 +524,7 @@ Download `sip-and-sort.exe` from Releases and double-click it. No API keys ship 
 
 ---
 
-## 📄 라이선스
+## 🔖 라이선스
 
 [MIT License](LICENSE)
 자유롭게 사용·수정·배포할 수 있으며, 소프트웨어는 "있는 그대로" 제공됩니다.
