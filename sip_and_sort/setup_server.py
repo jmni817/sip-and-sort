@@ -17,6 +17,8 @@ import json
 import logging
 import os
 import secrets
+import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -51,6 +53,7 @@ from .llm import (
 from .message import Email
 from .runner import format_report, run
 from .templates import DEFAULT_TEMPLATES, TEMPLATE_LABELS
+from . import __version__, updates
 
 # AI 연결 테스트에 쓰는 예시 메일 (키워드 규칙으로는 놓치는 '무가 협찬' 표현)
 LLM_TEST_EMAIL = Email(
@@ -77,7 +80,9 @@ SESSION_COOKIE = "sip_and_sort_session"
 TOKEN_META = '<meta name="sip-token" content="">'
 AUTO_INTERVAL_CHOICES = (30, 60, 120, 180)  # 자동 정리 간격(분)
 AUTO_CHECK_SECONDS = 15                     # 자동 정리 시각이 됐는지 확인하는 주기
-EMAIL_RECHECK_SECONDS = 300                 # 연결된 계정 주소 조회 실패 시 재시도 간격
+EMAIL_RECHECK_SECONDS = 300
+UPDATE_CHECK_SECONDS = 12 * 3600  # 새 버전 확인 주기 (켤 때 + 오래 켜 두면 12시간마다)
+UPDATE_LAUNCH_DELAY_SECONDS = 1.5  # 다운로드 완료 후 페이지가 '설치 완료'를 보여 줄 시간                 # 연결된 계정 주소 조회 실패 시 재시도 간격
 
 
 class _LinkCaptureBrowser(webbrowser.BaseBrowser):
@@ -139,6 +144,12 @@ class SetupState:
         self._run_seq = 0
         self._next_auto_at: float | None = None
         self.on_shutdown = None  # 프로그램 창 모드에서 [종료] 시 창을 닫는 함수
+        self.request_exit = None  # 프로그램 전체를 끝내는 함수 (serve 가 설정)
+        # 새 버전 안내
+        self._update: updates.UpdateInfo | None = None
+        self._update_checked_at: float | None = None
+        self._update_checking = False
+        self.update_download: dict[str, Any] = {"state": "idle", "done": 0, "total": 0, "error": ""}
         self._browser_name = f"sip-and-sort-login-{id(self)}"
         webbrowser.register(self._browser_name, None, _LinkCaptureBrowser(self._set_auth_url))
 
@@ -183,6 +194,8 @@ class SetupState:
             "auto": {**self.auto_settings(), "next_at": self._next_auto_at, "choices": list(AUTO_INTERVAL_CHOICES)},
             "llm": self.llm_status(config),
             "last_run": self.last_run,
+            "version": __version__,
+            "update": self.update_status(),
         }
 
     # ---- 저장
@@ -418,6 +431,70 @@ class SetupState:
             print(f"[{stamp}] 자동 정리 실패: {exc}", flush=True)
         return True
 
+    # ---- 새 버전 안내 / 다운로드
+
+    def maybe_check_update(self) -> None:
+        """마지막 확인 후 오래됐으면 백그라운드에서 GitHub 최신 릴리스를 확인한다."""
+        now = time.monotonic()
+        if self._update_checking:
+            return
+        if self._update_checked_at is not None and now - self._update_checked_at < UPDATE_CHECK_SECONDS:
+            return
+        self._update_checking = True
+        self._update_checked_at = now
+
+        def worker() -> None:
+            try:
+                info = updates.check_latest()
+                if info is not None:
+                    self._update = info
+            finally:
+                self._update_checking = False
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def update_status(self) -> dict[str, Any] | None:
+        info = self._update
+        if info is None:
+            return None
+        return {
+            "version": info.version,
+            "notes": info.notes,
+            "page_url": info.page_url,
+            # 직접 받아서 실행해 주는 건 Windows exe 로 실행 중일 때만 (그 외에는 릴리스 페이지 안내)
+            "can_install": bool(info.download_url) and _is_frozen_exe(),
+            "current_exe": sys.executable if _is_frozen_exe() else "",
+            "download": dict(self.update_download),
+        }
+
+    def start_update_download(self) -> None:
+        info = self._update
+        if info is None:
+            raise ValueError("새 버전 정보가 없습니다.")
+        if not (info.download_url and _is_frozen_exe()):
+            raise ValueError("이 실행 방식에서는 자동 설치를 지원하지 않습니다. 릴리스 페이지에서 받아 주세요.")
+        if self.update_download["state"] in ("downloading", "done"):
+            return
+        dest = _update_destination(info)
+        self.update_download = {"state": "downloading", "done": 0, "total": info.size, "error": "", "path": str(dest)}
+
+        def progress(done: int, total: int) -> None:
+            self.update_download.update(done=done, total=total)
+
+        def worker() -> None:
+            try:
+                updates.download(info, dest, on_progress=progress)
+                self.update_download["state"] = "done"
+                time.sleep(UPDATE_LAUNCH_DELAY_SECONDS)
+                _launch(dest)
+                if self.request_exit is not None:
+                    self.request_exit()
+            except Exception as exc:  # 사용자에게 그대로 보여 준다
+                log.debug("업데이트 다운로드 실패", exc_info=True)
+                self.update_download.update(state="error", error=str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def auto_loop(self, stop: threading.Event) -> None:
         while not stop.wait(AUTO_CHECK_SECONDS):
             try:
@@ -525,6 +602,7 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                 if not self._token_ok():
                     return self._json(HTTPStatus.FORBIDDEN, {"error": "invalid token"})
                 state.refresh_connected_email()
+                state.maybe_check_update()
                 return self._json(HTTPStatus.OK, state.status())
             return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain")
 
@@ -553,6 +631,9 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
                     return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=True)})
                 if path == "/api/run":
                     return self._json(HTTPStatus.OK, {"ok": True, "output": state.run_once(dry_run=False)})
+                if path == "/api/update/download":
+                    state.start_update_download()
+                    return self._json(HTTPStatus.OK, {"ok": True})
                 if path == "/api/auto":
                     state.save_auto(payload)
                     return self._json(HTTPStatus.OK, {"ok": True})
@@ -578,6 +659,31 @@ def _make_handler(state: SetupState, access_token: str, allowed_hosts: set[str])
 
 
 APP_TITLE = "sip-and-sort"
+
+
+def _is_frozen_exe() -> bool:
+    return bool(getattr(sys, "frozen", False)) and os.name == "nt"
+
+
+def _update_destination(info: updates.UpdateInfo) -> Path:
+    """새 exe 를 지금 exe 옆에 'sip-and-sort-v0.1.11.exe' 로 둔다. 쓸 수 없으면 다운로드 폴더."""
+    name = f"sip-and-sort-{info.tag}.exe"
+    for folder in (Path(sys.executable).resolve().parent, Path.home() / "Downloads"):
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            probe = folder / ".sip-and-sort-write-test"
+            probe.write_bytes(b"")
+            probe.unlink()
+            return folder / name
+        except OSError:
+            continue
+    raise ValueError("새 버전을 저장할 폴더에 쓸 수 없습니다.")
+
+
+def _launch(path: Path) -> None:
+    """새 버전 실행 (지금 프로그램과 분리된 프로세스로)."""
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen([str(path)], cwd=str(path.parent), close_fds=True, creationflags=flags)
 WINDOW_LOAD_TIMEOUT_SECONDS = 20  # 이 시간 안에 화면이 안 뜨면 브라우저로 넘어간다
 
 
@@ -722,6 +828,13 @@ def serve(
     threading.Thread(target=state.auto_loop, args=(stop_auto,), daemon=True).start()
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
+
+    def request_exit() -> None:  # 업데이트 설치 후 지금 프로그램을 끝낸다
+        threading.Thread(target=server.shutdown, daemon=True).start()
+        if state.on_shutdown is not None:
+            state.on_shutdown()
+
+    state.request_exit = request_exit
     try:
         if window:
             try:

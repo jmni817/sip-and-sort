@@ -174,6 +174,23 @@
            padding: 14px 22px; border-radius: 18px; box-shadow: 0 10px 30px rgba(194, 74, 99, .35); }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
   .toast.err { background: var(--coral); }
+
+  /* 새 버전 안내 팝업 */
+  .modal-back { position: fixed; inset: 0; z-index: 20; background: rgba(43, 29, 34, .35);
+                display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: var(--white); border: 2px solid var(--blush); border-radius: 22px; padding: 24px;
+           width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto;
+           box-shadow: 0 16px 40px rgba(194, 74, 99, .3); }
+  .modal h3 { margin: 0 0 6px; font-size: 19px; color: var(--rose); }
+  .modal .ver { color: var(--muted); font-size: 14px; font-weight: 600; margin: 0 0 12px; }
+  .modal .notes { background: #FFF6F8; color: var(--text); border: 1px solid #FAD2DB; border-radius: 12px; padding: 12px 14px;
+                  font-family: inherit; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; max-height: 220px; overflow: auto; margin: 0; }
+  .modal .warn { background: #FFF0F3; border-left: 5px solid var(--coral); border-radius: 12px; padding: 12px 14px;
+                 font-weight: 700; color: #8C2A3E; margin: 0 0 10px; }
+  .modal .path { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; word-break: break-all;
+                 background: #FFF6F8; border-radius: 8px; padding: 8px 10px; }
+  .bar { height: 12px; background: #FAD2DB; border-radius: 999px; overflow: hidden; margin: 14px 0 6px; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--rose), var(--coral)); transition: width .3s; }
 </style>
 </head>
 <body>
@@ -313,6 +330,36 @@
   </section>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <div class="modal-back" id="updBack" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+      <div id="updOffer">
+        <h3 id="updTitle">🍓 새로운 기능을 추가하고, 버그를 고쳐 업데이트됐어요!</h3>
+        <p class="ver" id="updVer"></p>
+        <pre class="notes" id="updNotes"></pre>
+        <div class="row">
+          <button id="updDownload" type="button"></button>
+          <button id="updLater" class="secondary" type="button">나중에</button>
+        </div>
+      </div>
+      <div id="updNotice" hidden>
+        <h3>잠깐만요!</h3>
+        <p class="warn">설치돼 있던 기존 프로그램 exe는 삭제해 주세요!</p>
+        <p class="help">새 버전은 기존 파일 옆에 <b id="updNewName"></b>(으)로 저장되고, 받은 뒤 바로 실행돼요. 새 버전이 열리면 아래 기존 파일을 지워 주세요. 등록한 키와 설정은 그대로 이어져요.</p>
+        <p class="path" id="updOldPath"></p>
+        <div class="row"><button id="updConfirm" type="button">확인</button></div>
+      </div>
+      <div id="updProgress" hidden>
+        <h3 id="updProgTitle">새 버전을 받는 중이에요...</h3>
+        <div class="bar"><div id="updBar"></div></div>
+        <p class="help" id="updProgText"></p>
+        <div class="row" id="updErrRow" hidden>
+          <button id="updRetry" type="button">다시 시도</button>
+          <button id="updPage" class="secondary" type="button">릴리스 페이지에서 받기</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <footer id="footer">🍓 다음부터는 프로그램을 실행해 [지금 정리하기]만 누르면 됩니다.</footer>
 </main>
 <script>
@@ -375,6 +422,69 @@
     if (!r.total) return `🍓 ${prefix} 완료! 새 협업 메일이 없어요`;
     return `🍓 ${prefix} 완료! 답장 초안 ${r.drafted}건 · 직접 검토 ${r.review}건`;
   }
+  // ---- 새 버전 안내 팝업: 안내 → (기존 exe 삭제 안내) → 다운로드·실행
+  let updDismissed = false, updStep = null, updFastPoll = null;
+  function showUpdStep(step) {
+    updStep = step;
+    $("updBack").hidden = !step;
+    $("updOffer").hidden = step !== "offer";
+    $("updNotice").hidden = step !== "notice";
+    $("updProgress").hidden = step !== "progress";
+  }
+  function renderUpdate(s) {
+    const u = s.update;
+    if (!u) return;
+    if (!updStep && !updDismissed) {
+      $("updVer").textContent = `지금 버전 v${s.version}  →  새 버전 v${u.version}`;
+      $("updNotes").textContent = u.notes || "";
+      $("updNotes").hidden = !u.notes;
+      $("updDownload").textContent = `v${u.version} 다운로드하기`;
+      $("updNewName").textContent = `sip-and-sort-v${u.version}.exe`;
+      $("updOldPath").textContent = u.current_exe ? `기존 파일: ${u.current_exe}` : "";
+      showUpdStep("offer");
+    }
+    if (updStep === "progress") {
+      const d = u.download || {};
+      const pct = d.total ? Math.min(100, Math.round(d.done / d.total * 100)) : 0;
+      $("updBar").style.width = (d.state === "done" ? 100 : pct) + "%";
+      $("updErrRow").hidden = d.state !== "error";
+      if (d.state === "done") {
+        $("updProgTitle").textContent = "설치 완료! 새 버전을 실행할게요.";
+        $("updProgText").textContent = "이 창은 곧 닫혀요. 새 버전이 열리면 기존 exe 파일을 삭제해 주세요.";
+      } else if (d.state === "error") {
+        $("updProgTitle").textContent = "새 버전을 받지 못했어요.";
+        $("updProgText").textContent = d.error || "";
+      } else {
+        $("updProgTitle").textContent = "새 버전을 받는 중이에요...";
+        $("updProgText").textContent = d.total ? `${pct}% (${(d.done / 1048576).toFixed(1)} / ${(d.total / 1048576).toFixed(1)} MB)` : "준비 중...";
+      }
+      if (d.state !== "downloading" && updFastPoll) { clearInterval(updFastPoll); updFastPoll = null; }
+    }
+  }
+  async function startUpdateDownload() {
+    showUpdStep("progress");
+    $("updErrRow").hidden = true;
+    try {
+      await api("/api/update/download", {});
+      if (!updFastPoll) updFastPoll = setInterval(() => refresh().catch(() => {}), 800);
+      refresh().catch(() => {});
+    } catch (err) {
+      $("updProgTitle").textContent = "새 버전을 받지 못했어요.";
+      $("updProgText").textContent = err.message;
+      $("updErrRow").hidden = false;
+    }
+  }
+  $("updDownload").onclick = () => {
+    const u = lastStatus && lastStatus.update;
+    if (!u) return;
+    if (!u.can_install) { openExternal(u.page_url); updDismissed = true; showUpdStep(null); return; }
+    showUpdStep("notice");
+  };
+  $("updLater").onclick = () => { updDismissed = true; showUpdStep(null); };
+  $("updConfirm").onclick = startUpdateDownload;
+  $("updRetry").onclick = startUpdateDownload;
+  $("updPage").onclick = () => { const u = lastStatus && lastStatus.update; if (u) openExternal(u.page_url); };
+
   function checkNewRun(s) {
     const r = s.last_run;
     const seq = r ? r.seq : 0;
@@ -504,6 +614,7 @@
     applyView();
     renderAuto(s);
     checkNewRun(s);
+    renderUpdate(s);
     return s;
   }
 
@@ -586,6 +697,8 @@
   };
 
   refresh(true).catch((err) => msg("m1", "상태를 불러오지 못했습니다: " + err.message, "err"));
+  // 새 버전 확인은 첫 상태 요청 때 백그라운드로 시작되므로, 잠시 뒤 한 번 더 물어 팝업을 바로 띄운다
+  setTimeout(() => refresh().catch(() => {}), 3000);
 })();
 </script>
 </body>
