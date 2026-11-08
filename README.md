@@ -11,9 +11,11 @@
 > A smart & aesthetic open-source Gmail sorter for creators and developers.
 
 ⚠️ **중요 주의사항 (Disclaimer)**
-본 프로그램은 수신된 메일을 분석하여 라벨을 부여하고, 조건이 충족될 시 **Gmail 임시보관함(Drafts)에 '초안'만을 저장**합니다. 어떠한 경우에도 메일을 **자동으로 발송(Send)하지 않으며**, 최종 확인 및 발송 책임은 전적으로 사용자에게 있습니다.
+본 프로그램은 수신된 메일을 분석하여 라벨을 부여하고, 조건이 충족될 시 **Gmail 임시보관함(Drafts)에 '초안'만을 저장**합니다. 
+어떠한 경우에도 메일을 **자동으로 발송(Send)하지 않으며**, 최종 확인 및 발송 책임은 전적으로 사용자에게 있습니다.
 
-🔑 이 저장소에는 **어떤 API 키·OAuth 클라이언트·토큰도 포함되어 있지 않습니다.** 사용하는 분이 각자 본인의 Google Cloud 프로젝트에서 발급한 `credentials.json`을 로컬 설정 페이지에 등록해 본인 Gmail에 연결합니다.
+🔑 이 저장소에는 **어떤 API 키·OAuth 클라이언트·토큰도 포함되어 있지 않습니다.** 
+사용하는 분이 각자 본인의 Google Cloud 프로젝트에서 발급한 `credentials.json`을 로컬 설정 페이지에 등록해 본인 Gmail에 연결합니다.
 
 ---
 
