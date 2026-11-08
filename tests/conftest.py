@@ -54,3 +54,11 @@ def config() -> dict:
 @pytest.fixture
 def my_addresses() -> set[str]:
     return {MY_ADDRESS}
+
+
+@pytest.fixture(autouse=True)
+def no_real_update_check(monkeypatch):
+    """테스트 중에는 실제 GitHub 에 새 버전을 묻지 않는다."""
+    from sip_and_sort import updates
+
+    monkeypatch.setattr(updates, "check_latest", lambda *a, **k: None)
