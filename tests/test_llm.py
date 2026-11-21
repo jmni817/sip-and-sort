@@ -280,3 +280,32 @@ def test_setup_llm_connection_test_uses_example_mail(tmp_path, monkeypatch):
     output = state.test_llm()
     assert "연결 성공" in output and "B 무가협업 거절" in output
     assert "릴스" in seen[0]
+
+
+# ---------------------------------------------------------------- AI 가 확신했지만 A/B/C 는 없는 경우
+
+
+def test_confident_ai_category_is_used_even_without_abc(config):
+    paid = AIVerdict(True, Category.PAID_AD, None, 0.95, "제작비와 제품 제공을 제안하는 유료 협업")
+    ai = FakeAI({"브랜드 협업 관련 미팅 요청": paid})
+    client = make_client({"thread-ambiguous": [gmail_message("ambiguous")]})
+    report = run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
+    [result] = report.results
+    assert result.category is Category.PAID_AD and result.decided_by == "ai" and result.scenario is None
+    assert result.reasons == ["AI 판단 (확신도 0.95) · A/B/C 중 해당 없음 → 직접 검토: 제작비와 제품 제공을 제안하는 유료 협업"]
+    assert "확신하지 못함" not in format_report(report)
+
+
+def test_confident_not_collab_is_reported_plainly(config):
+    ai = FakeAI({"브랜드 협업 관련 미팅 요청": AIVerdict(False, Category.OTHER, None, 0.9, "단순 안부 메일")})
+    client = make_client({"thread-ambiguous": [gmail_message("ambiguous")]})
+    report = run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
+    [result] = report.results
+    assert result.decided_by == "rule" and any("협업 제안이 아니라고 판단" in r for r in result.reasons)
+
+
+def test_prompt_defines_paid_offer_and_no_mention_cases():
+    from sip_and_sort.llm import SYSTEM_PROMPT
+
+    assert "제작비" in SYSTEM_PROMPT and "제품 제공이 명시된" in SYSTEM_PROMPT
+    assert "금전 지급도 제품 제공도 언급되지 않은" in SYSTEM_PROMPT

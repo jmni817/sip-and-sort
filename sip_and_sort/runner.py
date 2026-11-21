@@ -100,6 +100,13 @@ def _collab_hints(mail: Email, rules: dict[str, list[str]]) -> list[str]:
     return find_keywords(analysis_text(mail), [kw for key in keys for kw in rules[key]])
 
 
+def _ai_reason(verdict) -> str:
+    head = f"AI 판단 (확신도 {verdict.confidence:.2f})"
+    if verdict.scenario is None:
+        head += " · A/B/C 중 해당 없음 → 직접 검토"
+    return f"{head}: {verdict.reason}"
+
+
 def _is_noreply(address: str) -> bool:
     _, email_addr = parseaddr(address)
     local = email_addr.split("@", 1)[0]
@@ -190,7 +197,7 @@ def run(
                     category=verdict.category,
                     scenario=verdict.scenario,
                     matched_keywords=hints,
-                    reasons=[f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"],
+                    reasons=[_ai_reason(verdict)],
                     decided_by="ai",
                     bulk_reason=bulk_reason,
                 )
@@ -213,9 +220,13 @@ def run(
                 # 2) 규칙으로 A/B/C 를 못 정한 협업 메일만 AI 에게 묻는다
                 if result.scenario is None and ai is not None:
                     verdict = _ask_ai(ai, mail, report)
-                    if verdict and verdict.is_collab and verdict.scenario and verdict.confidence >= ai.min_confidence:
+                    confident = verdict is not None and verdict.confidence >= ai.min_confidence
+                    if confident and verdict.is_collab:
+                        # A/B/C 가 없어도 AI 가 확신한 유형은 반영한다 (예: 제작비를 주겠다는 유료 제안)
                         result.category, result.scenario, result.decided_by = verdict.category, verdict.scenario, "ai"
-                        result.reasons = [f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"]
+                        result.reasons = [_ai_reason(verdict)]
+                    elif confident:
+                        result.reasons.append(f"AI는 협업 제안이 아니라고 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}")
                     elif verdict:
                         result.reasons.append(f"AI도 확신하지 못함 (확신도 {verdict.confidence:.2f}): {verdict.reason}")
             else:
@@ -235,7 +246,7 @@ def run(
                     category=verdict.category,
                     scenario=verdict.scenario,
                     matched_keywords=hints,
-                    reasons=[f"AI 판단 (확신도 {verdict.confidence:.2f}): {verdict.reason}"],
+                    reasons=[_ai_reason(verdict)],
                     decided_by="ai",
                 )
 
