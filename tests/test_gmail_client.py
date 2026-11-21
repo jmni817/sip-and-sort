@@ -181,3 +181,12 @@ def test_example_credentials_file_is_rejected():
     example = Path(__file__).parents[1] / "credentials.example.json"
     with pytest.raises(AuthError):
         validate_client_secrets(json.loads(example.read_text(encoding="utf-8")))
+
+
+def test_has_sent_to_searches_sent_mail(client, service):
+    messages = service.users.return_value.messages.return_value
+    messages.list.return_value.execute.return_value = {"messages": [{"id": "1", "threadId": "t"}]}
+    assert client.has_sent_to("brand.co.kr") is True
+    assert messages.list.call_args.kwargs["q"] == "in:sent to:brand.co.kr"
+    messages.list.return_value.execute.return_value = {}
+    assert client.has_sent_to("other.co.kr") is False

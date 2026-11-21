@@ -232,6 +232,10 @@ class GmailClient:
 
     # ---- 검색 / 조회
 
+    def has_sent_to(self, target: str) -> bool:
+        """target(주소 또는 도메인)에게 내가 메일을 보낸 적이 있는지."""
+        return bool(self.search_messages(f"in:sent to:{target}", max_results=1))
+
     def search_messages(self, query: str, max_results: int = 200) -> list[dict[str, str]]:
         """검색 결과 [{id, threadId}, ...] (최신순, 페이지네이션 처리)."""
         results: list[dict[str, str]] = []

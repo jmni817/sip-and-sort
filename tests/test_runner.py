@@ -27,6 +27,7 @@ def make_client(threads: dict[str, list[dict]], existing_labels: dict[str, str] 
     ]
     client.get_thread.side_effect = lambda tid: {"id": tid, "messages": threads[tid]}
     client.get_or_create_label.side_effect = lambda name: f"id:{name}"
+    client.has_sent_to.return_value = False  # 기본: 메일을 주고받은 적 없는 상대
     return client
 
 
@@ -118,3 +119,51 @@ def test_format_report_summary_only_hides_senders(threads, config):
     assert "manager@brand-example.co.kr" in full and "초안 미리보기" in full
     assert "manager@brand-example.co.kr" not in short
     assert "유료광고" in short
+
+
+# ---------------------------------------------------------------- 진행 중인 협업 상대의 BCC 메일
+
+
+def _bcc_from_known_partner():
+    msg = gmail_message("ambiguous")
+    for header in msg["payload"]["headers"]:
+        if header["name"] == "To":
+            header["value"] = "undisclosed-recipients:;"
+    return msg
+
+
+def test_bcc_mail_from_known_partner_is_not_bulk(config):
+    client = make_client({"thread-ambiguous": [_bcc_from_known_partner()]})
+    client.has_sent_to.side_effect = lambda target: target == "agency-example.com"  # 같은 회사에 보낸 적 있음
+    report = run(client, config, dry_run=True, now=1_800_000_000)
+    assert report.excluded_bulk == []
+    assert [r.subject for r in report.results] == ["브랜드 협업 관련 미팅 요청"]
+    assert report.results[0].bulk_reason is None
+
+
+def test_bcc_mail_from_stranger_is_still_bulk(config):
+    client = make_client({"thread-ambiguous": [_bcc_from_known_partner()]})
+    report = run(client, config, dry_run=True, now=1_800_000_000)
+    assert report.results == [] and "수신자 비공개" in report.excluded_bulk[0][2]
+
+
+def test_personal_mail_domain_checks_address_not_domain():
+    from sip_and_sort.runner import _is_known_contact
+
+    client = MagicMock()
+    client.has_sent_to.return_value = True
+    cache = {}
+    assert _is_known_contact(client, "someone@gmail.com", cache)
+    client.has_sent_to.assert_called_once_with("someone@gmail.com")
+    _is_known_contact(client, "pr@brand.co.kr", cache)
+    client.has_sent_to.assert_called_with("brand.co.kr")
+    _is_known_contact(client, "pr@brand.co.kr", cache)  # 같은 실행 안에서는 다시 묻지 않음
+    assert client.has_sent_to.call_count == 2
+
+
+def test_known_contact_check_failure_keeps_old_behavior():
+    from sip_and_sort.runner import _is_known_contact
+
+    client = MagicMock()
+    client.has_sent_to.side_effect = RuntimeError("api down")
+    assert _is_known_contact(client, "pr@brand.co.kr", {}) is False

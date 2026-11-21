@@ -16,6 +16,7 @@ from email.utils import parseaddr
 
 from .classifier import (
     BULK_SENDER_LOCALPART,
+    CandidateResult,
     Category,
     Scenario,
     analysis_text,
@@ -100,6 +101,28 @@ def _collab_hints(mail: Email, rules: dict[str, list[str]]) -> list[str]:
     return find_keywords(analysis_text(mail), [kw for key in keys for kw in rules[key]])
 
 
+# 개인 메일 서비스는 같은 도메인이라도 다른 사람이므로 주소로만 판단한다
+PERSONAL_MAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "naver.com", "daum.net", "hanmail.net", "kakao.com", "nate.com",
+    "outlook.com", "hotmail.com", "live.com", "yahoo.com", "icloud.com", "me.com",
+}
+
+
+def _is_known_contact(client, sender_email: str, cache: dict[str, bool]) -> bool:
+    """내가 이 보낸 사람(회사 메일이면 같은 회사 도메인)에게 메일을 보낸 적이 있는지."""
+    if "@" not in sender_email:
+        return False
+    domain = sender_email.rsplit("@", 1)[1]
+    target = sender_email if domain in PERSONAL_MAIL_DOMAINS else domain
+    if target not in cache:
+        try:
+            cache[target] = bool(client.has_sent_to(target))
+        except Exception:  # 확인 실패 시 예전처럼 대량발송 규칙을 그대로 적용
+            log.debug("보낸 메일 확인 실패: %s", target, exc_info=True)
+            cache[target] = False
+    return cache[target]
+
+
 def _ai_reason(verdict) -> str:
     head = f"AI 판단 (확신도 {verdict.confidence:.2f})"
     if verdict.scenario is None:
@@ -158,6 +181,7 @@ def run(
     log.debug("Gmail 검색어: %s", query)
     refs = client.search_messages(query, max_results=config["max_messages"])
     thread_ids = list(dict.fromkeys(ref["threadId"] for ref in refs))
+    known_contacts: dict[str, bool] = {}  # 이번 실행 중 '보낸 적 있는 상대' 확인 결과 캐시
 
     for thread_id in thread_ids:
         try:
@@ -176,6 +200,11 @@ def run(
             if bulk_reason is None and not candidate.matched_keywords:
                 if config["keywords"].get("exclude_bulk_mail_heuristics", True):
                     bulk_reason = detect_bulk_mail(mail, my_addresses)
+            if bulk_reason and _is_known_contact(client, mail.sender_email, known_contacts):
+                # 이미 메일을 주고받은 협업 상대가 숨은 참조(BCC) 등으로 보낸 메일은 대량발송으로 보지 않는다
+                bulk_reason = None
+                if candidate.matched_keywords:
+                    candidate = CandidateResult(True, candidate.matched_keywords)
 
             if bulk_reason:
                 # 대량발송 메일: 인플루언서·체험단 '모집'처럼 진짜 협업 제안일 수도 있어서
