@@ -57,3 +57,10 @@ def test_default_templates_only_use_supported_placeholders():
 def test_reply_subject():
     assert reply_subject("협업 제안") == "Re: 협업 제안"
     assert reply_subject("RE: 협업 제안") == "RE: 협업 제안"
+
+
+def test_group_buy_decline_template_has_decline_sentence():
+    from sip_and_sort.templates import DEFAULT_TEMPLATES, TEMPLATE_LABELS
+
+    assert "공동구매는 진행하지 않고 있어 이번 제안은 거절드려야 할 것 같습니다." in DEFAULT_TEMPLATES["decline_group_buy"]
+    assert "decline_group_buy" in TEMPLATE_LABELS

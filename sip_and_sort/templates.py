@@ -49,12 +49,22 @@ DEFAULT_TEMPLATES: dict[str, str] = {
 감사합니다.
 {activity_name} 드림
 """,
+    "decline_group_buy": """안녕하세요, {contact_name}님.
+{activity_name}입니다. 좋은 제안 주셔서 감사합니다.
+
+공동구매는 진행하지 않고 있어 이번 제안은 거절드려야 할 것 같습니다.
+양해 부탁드리며, 다음에 다른 형태로 함께할 기회가 있으면 좋겠습니다.
+
+감사합니다.
+{activity_name} 드림
+""",
 }
 
 TEMPLATE_LABELS = {
     "price_quote": "A. 단가/비용 문의 → 단가 안내",
     "decline_unpaid": "B. 무가 협업(제품만 제공 + 콘텐츠 의무) → 거절",
     "gift_accept": "C. 의무 없는 선물 제안 → 수락",
+    "decline_group_buy": "D. 공동구매 제안 → 거절",
 }
 
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")

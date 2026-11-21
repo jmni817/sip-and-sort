@@ -38,7 +38,7 @@ keywords:
   # List-Unsubscribe 헤더, (광고) 제목 표기, noreply 발신, 발신자=수신자, BCC 수신 등 대량메일 자동 제외
   exclude_bulk_mail_heuristics: true
 
-# 답장 초안 템플릿 (A/B/C 상황별)
+# 답장 초안 템플릿 (A/B/C/D 상황별)
 # 사용 가능한 자리표시자: {activity_name} {contact_name} {original_subject}
 # 알 수 없는 값은 "[ ]" 로 남아 초안에서 직접 채울 수 있습니다.
 templates:
@@ -75,6 +75,17 @@ templates:
 
     콘텐츠 제작 의무가 없는 선물로 이해하고 감사히 받겠습니다.
     배송받을 정보는 확인 후 별도로 회신드리겠습니다.
+
+    감사합니다.
+    {activity_name} 드림
+
+  # (D) 공동구매 제안 → 거절
+  decline_group_buy: |
+    안녕하세요, {contact_name}님.
+    {activity_name}입니다. 좋은 제안 주셔서 감사합니다.
+
+    공동구매는 진행하지 않고 있어 이번 제안은 거절드려야 할 것 같습니다.
+    양해 부탁드리며, 다음에 다른 형태로 함께할 기회가 있으면 좋겠습니다.
 
     감사합니다.
     {activity_name} 드림

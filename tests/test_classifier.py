@@ -155,3 +155,34 @@ def test_rules_can_be_overridden(config):
     rules = get_rules(config)
     assert rules["price_inquiry"] == ["얼마"]
     assert detect_scenario(load_email("price_inquiry"), rules).scenario is None
+
+
+# ---------------------------------------------------------------- D 공동구매 거절
+
+
+def _mail(subject, body):
+    from sip_and_sort.message import Email
+
+    return Email(
+        id="m", thread_id="t", subject=subject, body=body, sender="김담당 <pr@brand-example.co.kr>", sender_name="김담당",
+        sender_email="pr@brand-example.co.kr", to=["me@example.com"], cc=[], headers={},
+    )
+
+
+def test_group_buy_is_scenario_d_regardless_of_spacing():
+    for text in ("공동구매 진행 제안드립니다", "공동 구매 진행을 제안드립니다"):
+        result = detect_scenario(_mail("제안드립니다", text))
+        assert result.scenario is Scenario.DECLINE_GROUP_BUY
+        assert Scenario.DECLINE_GROUP_BUY.template_key == "decline_group_buy"
+
+
+def test_group_buy_takes_priority_over_other_scenarios():
+    email = _mail("공동구매 문의", "공동구매 진행 시 단가가 어떻게 되시는지 궁금합니다. 제품만 제공, 업로드 필수")
+    assert detect_scenario(email).scenario is Scenario.DECLINE_GROUP_BUY
+
+
+def test_group_buy_counts_as_candidate_without_collab_keywords():
+    from sip_and_sort.config import DEFAULT_CONFIG
+
+    result = check_candidate(_mail("공동구매 제안", "저희 제품 공동구매를 함께하고 싶습니다."), DEFAULT_CONFIG)
+    assert result.is_candidate and "공동 구매" in result.matched_keywords

@@ -1,4 +1,4 @@
-"""규칙(키워드) 기반 협업 메일 판별 / 분류 / 답장 상황(A·B·C) 판별.
+"""규칙(키워드) 기반 협업 메일 판별 / 분류 / 답장 상황(A·B·C·D) 판별.
 
 LLM이나 외부 서비스를 쓰지 않는다. 모든 판단은 이 파일의 키워드 규칙과
 config.yaml 의 `keywords`, `rules` 값으로만 이뤄진다.
@@ -29,14 +29,17 @@ class Scenario(str, Enum):
     PRICE_QUOTE = "A"  # 단가/비용 문의 → 단가 안내
     DECLINE_UNPAID = "B"  # 무가 협업(제품만 제공 + 콘텐츠 의무) → 거절
     GIFT_ACCEPT = "C"  # 의무 없는 순수 선물 → 수락
+    DECLINE_GROUP_BUY = "D"  # 공동구매 제안 → 거절
 
     @property
     def display(self) -> str:
-        return {"A": "A 단가안내", "B": "B 무가협업 거절", "C": "C 선물 수락"}[self.value]
+        return {"A": "A 단가안내", "B": "B 무가협업 거절", "C": "C 선물 수락", "D": "D 공동구매 거절"}[self.value]
 
     @property
     def template_key(self) -> str:
-        return {"A": "price_quote", "B": "decline_unpaid", "C": "gift_accept"}[self.value]
+        return {
+            "A": "price_quote", "B": "decline_unpaid", "C": "gift_accept", "D": "decline_group_buy",
+        }[self.value]
 
 
 # 공백이 들어간 한국어 키워드는 띄어쓰기 유무와 상관없이 매칭된다 ("유료 광고" == "유료광고").
@@ -78,6 +81,8 @@ DEFAULT_RULES: dict[str, list[str]] = {
         "선물", "기프트", "기프팅", "제품을 보내", "제품 보내", "보내드리고", "보내 드리고",
         "보내드려도", "발송해 드리", "gift", "gifting", "send you", "sending you", "PR package",
     ],
+    # 상황 D: 공동구매 제안 (있으면 다른 상황보다 우선해 거절)
+    "group_buy": ["공동 구매", "group buy", "group buying", "groupbuy"],
     # 상황 A: 단가/비용 문의
     "price_inquiry": [
         "단가", "견적", "광고비", "광고 비용", "비용 문의", "비용이 어떻게", "금액 문의",
@@ -179,6 +184,7 @@ def check_candidate(
 ) -> CandidateResult:
     keywords_cfg = config.get("keywords") or {}
     keywords = list(keywords_cfg.get("korean") or []) + list(keywords_cfg.get("english") or [])
+    keywords += get_rules(config)["group_buy"]  # 공동구매 제안은 협업 키워드가 없어도 후보로 본다
     matched = find_keywords(analysis_text(email), keywords)
     if not matched:
         return CandidateResult(False)
@@ -205,7 +211,7 @@ def categorize(email: Email, rules: dict[str, list[str]] | None = None) -> Categ
     return Category.OTHER
 
 
-# --------------------------------------------------------------------------- 3) A/B/C 판별
+# --------------------------------------------------------------------------- 3) A/B/C/D 판별
 
 
 @dataclass
@@ -215,9 +221,12 @@ class ScenarioResult:
 
 
 def detect_scenario(email: Email, rules: dict[str, list[str]] | None = None) -> ScenarioResult:
-    """A/B/C 중 '정확히 하나'에만 해당할 때만 그 상황을 반환. 모호하면 None(직접 검토)."""
+    """공동구매 제안이면 D. 그 외에는 A/B/C 중 '정확히 하나'에만 해당할 때만 반환, 모호하면 None(직접 검토)."""
     rules = rules or get_rules()
     text = analysis_text(email)
+    group_buy = find_keywords(text, rules["group_buy"])
+    if group_buy:
+        return ScenarioResult(Scenario.DECLINE_GROUP_BUY, [f"공동구매 제안: {', '.join(group_buy)}"])
     price = find_keywords(text, rules["price_inquiry"])
     unpaid = find_keywords(text, rules["unpaid"])
     obligation = find_keywords(text, rules["content_obligation"])
@@ -244,4 +253,4 @@ def detect_scenario(email: Email, rules: dict[str, list[str]] | None = None) -> 
     if len(hits) > 1:
         names = "/".join(s.value for s in hits)
         return ScenarioResult(None, [f"여러 상황({names})에 동시에 해당 → 모호"])
-    return ScenarioResult(None, ["A/B/C 어느 상황에도 명확히 해당하지 않음"])
+    return ScenarioResult(None, ["A/B/C/D 어느 상황에도 명확히 해당하지 않음"])

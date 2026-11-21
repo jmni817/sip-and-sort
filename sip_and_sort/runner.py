@@ -126,7 +126,7 @@ def _is_known_contact(client, sender_email: str, cache: dict[str, bool]) -> bool
 def _ai_reason(verdict) -> str:
     head = f"AI 판단 (확신도 {verdict.confidence:.2f})"
     if verdict.scenario is None:
-        head += " · A/B/C 중 해당 없음 → 직접 검토"
+        head += " · A/B/C/D 중 해당 없음 → 직접 검토"
     return f"{head}: {verdict.reason}"
 
 

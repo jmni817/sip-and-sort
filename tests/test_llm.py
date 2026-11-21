@@ -292,7 +292,7 @@ def test_confident_ai_category_is_used_even_without_abc(config):
     report = run(client, config, dry_run=True, now=1_800_000_000, ai=ai)
     [result] = report.results
     assert result.category is Category.PAID_AD and result.decided_by == "ai" and result.scenario is None
-    assert result.reasons == ["AI 판단 (확신도 0.95) · A/B/C 중 해당 없음 → 직접 검토: 제작비와 제품 제공을 제안하는 유료 협업"]
+    assert result.reasons == ["AI 판단 (확신도 0.95) · A/B/C/D 중 해당 없음 → 직접 검토: 제작비와 제품 제공을 제안하는 유료 협업"]
     assert "확신하지 못함" not in format_report(report)
 
 
