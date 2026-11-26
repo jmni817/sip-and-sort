@@ -3,8 +3,8 @@
 <h1 align="center">🍓 sip-and-sort</h1>
 
 <p align="center">
-  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/downloads/jmni817/sip-and-sort/total?label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C&color=D36279" alt="총 다운로드 수"></a>
-  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/v/release/jmni817/sip-and-sort?label=%EC%B5%9C%EC%8B%A0%20%EB%B2%84%EC%A0%84&color=EC5564" alt="최신 버전"></a>
+  <a href="https://github.com/eight-studio/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/downloads/eight-studio/sip-and-sort/total?label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C&color=D36279" alt="총 다운로드 수"></a>
+  <a href="https://github.com/eight-studio/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/v/release/eight-studio/sip-and-sort?label=%EC%B5%9C%EC%8B%A0%20%EB%B2%84%EC%A0%84&color=EC5564" alt="최신 버전"></a>
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/jmni817/sip-and-sort/releases/latest"><b>🍓 Windows용 exe 다운로드</b></a>
+  <a href="https://github.com/eight-studio/sip-and-sort/releases/latest"><b>🍓 Windows용 exe 다운로드</b></a>
 </p>
 
 ---
@@ -158,7 +158,7 @@
 
 Python이나 명령어 없이 바로 쓸 수 있습니다.
 
-1. [**Releases**](https://github.com/jmni817/sip-and-sort/releases/latest)에서 `sip-and-sort.exe`를 받습니다.
+1. [**Releases**](https://github.com/eight-studio/sip-and-sort/releases/latest)에서 `sip-and-sort.exe`를 받습니다.
 2. [Google Cloud 설정](#-google-cloud-설정-최초-1회)을 따라 본인의 `credentials.json`을 받습니다. (최초 1회, 5~10분)
 3. `sip-and-sort.exe`를 **더블클릭**하면 **sip-and-sort 프로그램 창**이 열립니다.
 4. 화면 안내대로 진행합니다.
@@ -329,7 +329,7 @@ sip-and-sort는 각자 **본인 Google Cloud 프로젝트에서 만든 키**로 
 Python **3.11 이상**이 필요합니다.
 
 ```bash
-git clone https://github.com/jmni817/sip-and-sort.git
+git clone https://github.com/eight-studio/sip-and-sort.git
 cd sip-and-sort
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
