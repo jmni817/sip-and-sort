@@ -20,7 +20,7 @@ from . import __version__
 
 log = logging.getLogger(__name__)
 
-GITHUB_REPO = "jmni817/sip-and-sort"
+GITHUB_REPO = "eight-studio/sip-and-sort"
 LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 EXE_ASSET_NAME = "sip-and-sort.exe"
 # 릴리스 파일은 github.com 에서 GitHub 파일 서버로 넘겨주므로 그 주소들만 허용

@@ -16,14 +16,14 @@ from sip_and_sort.updates import UpdateInfo, check_latest, clean_notes, download
 REAL_CHECK_LATEST = updates.__dict__["check_latest"]
 
 BODY = "\n### ✨ 업데이트 안내 팝업\n- 새 버전이 나오면 **안내**합니다.\n\n\n---\n**다운로드:** 공통 안내"
-EXE_URL = "https://github.com/jmni817/sip-and-sort/releases/download/v9.9.9/sip-and-sort.exe"
+EXE_URL = "https://github.com/eight-studio/sip-and-sort/releases/download/v9.9.9/sip-and-sort.exe"
 
 
 def release(tag="v9.9.9", url=EXE_URL, size=6, **extra):
     return {
         "tag_name": tag,
         "body": BODY,
-        "html_url": f"https://github.com/jmni817/sip-and-sort/releases/tag/{tag}",
+        "html_url": f"https://github.com/eight-studio/sip-and-sort/releases/tag/{tag}",
         "assets": [{"name": "sip-and-sort.exe", "browser_download_url": url, "size": size}],
         **extra,
     }
