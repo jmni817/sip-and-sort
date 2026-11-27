@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="36" viewBox="0 0 100 36" role="img" aria-label="Tip">
+  <title>Tip</title>
+  <rect width="100" height="36" rx="18" fill="#F8C8D5"/>
+  <path transform="translate(22 10)" fill="#9E354B" d="M8 15.2 1.6 8.9A4.2 4.2 0 0 1 8 3.4a4.2 4.2 0 0 1 6.4 5.5Z"/>
+  <text x="48" y="24" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="17" font-weight="700" fill="#9E354B" textLength="28" lengthAdjust="spacingAndGlyphs">Tip</text>
+</svg>

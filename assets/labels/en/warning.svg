@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="36" viewBox="0 0 144 36" role="img" aria-label="Warning">
+  <title>Warning</title>
+  <rect width="144" height="36" rx="18" fill="#EC5564"/>
+  <path transform="translate(22 10)" fill="#FFFFFF" d="M8 15.2 1.6 8.9A4.2 4.2 0 0 1 8 3.4a4.2 4.2 0 0 1 6.4 5.5Z"/>
+  <text x="48" y="24" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="17" font-weight="700" fill="#FFFFFF" textLength="72" lengthAdjust="spacingAndGlyphs">Warning</text>
+</svg>
