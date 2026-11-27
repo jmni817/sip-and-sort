@@ -3,6 +3,10 @@
 <h1 align="center">🍓 sip-and-sort</h1>
 
 <p align="center">
+  <b>한국어</b> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/eight-studio/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/downloads/eight-studio/sip-and-sort/total?label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C&color=D36279" alt="총 다운로드 수"></a>
   <a href="https://github.com/eight-studio/sip-and-sort/releases/latest"><img src="https://img.shields.io/github/v/release/eight-studio/sip-and-sort?label=%EC%B5%9C%EC%8B%A0%20%EB%B2%84%EC%A0%84&color=EC5564" alt="최신 버전"></a>
 </p>
@@ -520,6 +524,8 @@ pyinstaller --noconfirm packaging/sip-and-sort.spec   # → dist/sip-and-sort.ex
 Keyword rules decide first. Optionally, only the mails the rules can't decide (e.g. an unpaid offer that never says "unpaid") are sent to any OpenAI-compatible LLM with your own key — personal details masked, low-confidence answers left for human review, and template-based drafts only.
 
 Download `sip-and-sort.exe` from Releases and double-click it. No API keys ship with this repo: create your own Google Cloud OAuth client (Desktop app) and connect it in the app.
+
+👉 **[Read the full README in English](README.en.md)**
 
 <br>
 
